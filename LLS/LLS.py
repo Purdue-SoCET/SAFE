@@ -14,7 +14,9 @@ bastTable = {} # List of bast
 # create read that is a DSAST offset
 # SAST to BAST Table
 
-
+# Ref page 32 of manual.
+# TODO: DSAST to BAST Mapping
+# TODO: DPAST to DSAST Mapping
 
 class GAST:
 	def __init__(self, permissions=bytes(2), encrypt=None, addr=None):
