@@ -1,11 +1,11 @@
-import numpy as np
+# import numpy as np
 import random
-import base64
-import hashlib
 import sys
 import os
-from Crypto import Random
-from Crypto.Cipher import AES
+# import base64
+# import hashlib
+# from Crypto import Random
+# from Crypto.Cipher import AES
 
 gastTable = {} # Hash table
 oitTable = {} # could be a tree also
