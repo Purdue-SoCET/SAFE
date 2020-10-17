@@ -12,7 +12,8 @@ oitTable = {} # could be a tree also
 oatTable = {} # Hash tab
 bastTable = {} # List of bast
 bastAvail = [] # list of available bast file names
-bastCnt = 0 # counter for next bast file if bastavail is empty
+global bastCnt # counter for next bast file if bastavail is empty
+bastCnt = 0
 
 # create read that is a DSAST offset
 # SAST to BAST Table
@@ -59,23 +60,31 @@ class BAST:
 		# probably do not pass this "value", increment number (bast counter)
 		# when free, put freed in the bastavailable list
 		# when creating a new bast, take oldest bastavail list
+
+		global bastCnt
+
 		if not bastAvail:
-			if(checkFileExists(bastCnt)):
+			if(self.checkFileExists(bastCnt)):
 				self.value = bastCnt
 				bastCnt += 1
 			else:
 				pass # TODO: What to do when file does not exist??
 		else:
 			oldest = bastAvail.pop(0)
-			if(checkFileExists(oldest)):
+			if(self.checkFileExists(oldest)):
 				self.value = oldest
 
 	
-	def checkFileExists(count):
+	def checkFileExists(self, count):
 		return os.path.exists("./b/"+str(hex(count)))
 
-	def writeToFile(self):
-			
+	def writeToFile(self, DSAST):
+		with open("./b/"+str(hex(self.value)), 'w') as file:
+			file.write(DSAST)
+
+	def readFromFile(self):
+		with open("./b/"+str(hex(self.value)), 'r') as file:
+			return file.read()
 
 
 class OIT:
@@ -136,14 +145,19 @@ class OIT:
 
 if __name__ == '__main__':
 	
+	abast = BAST()
+	abast.writeToFile("This is a test")
+	print(abast.readFromFile())
+
+
 	# aOIT = OIT()
 
-	aGAST = GAST(1,1234)
-	bGAST = GAST(0,4321)
-	print(gastTable)
-	print(oitTable)
+	# aGAST = GAST(1,1234)
+	# bGAST = GAST(0,4321)
+	# print(gastTable)
+	# print(oitTable)
 	#print(oatTable)
-	print(bastTable)
+	# print(bastTable)
 	
 	# aOIT = OIT()
 	# aOAT = OAT(aOIT)
