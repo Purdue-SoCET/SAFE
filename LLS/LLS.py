@@ -12,8 +12,7 @@ oitTable = {} # could be a tree also
 oatTable = {} # Hash tab
 bastTable = {} # List of bast
 bastAvail = [] # list of available bast file names
-global bastCnt # counter for next bast file if bastavail is empty
-bastCnt = 0
+bastCnt = 0 # counter for next bast file if bastavail is empty
 
 # create read that is a DSAST offset
 # SAST to BAST Table

@@ -3,7 +3,7 @@ import os
 
 #############################################################
 # Usage: python createfiles <number of files>
-# creates the sepcified number of files in the ./b/ directory
+# creates the specified number of files in the ./b/ directory
 # the file names are in hex
 #############################################################
 
