@@ -1,15 +1,18 @@
-import numpy as np
+# import numpy as np
 import random
-import base64
-import hashlib
 import sys
-from Crypto import Random
-from Crypto.Cipher import AES
+import os
+# import base64
+# import hashlib
+# from Crypto import Random
+# from Crypto.Cipher import AES
 
 gastTable = {} # Hash table
 oitTable = {} # could be a tree also
 oatTable = {} # Hash tab
 bastTable = {} # List of bast
+bastAvail = [] # list of available bast file names
+bastCnt = 0 # counter for next bast file if bastavail is empty
 
 # create read that is a DSAST offset
 # SAST to BAST Table
@@ -54,17 +57,35 @@ class GAST:
 
 
 class BAST:
-	def __init__(self, value):
-		# value: address where BAST's object points to
+	def __init__(self):
 		# probably do not pass this "value", increment number (bast counter)
-		# when free, put freed inti bastavailable list
+		# when free, put freed in the bastavailable list
 		# when creating a new bast, take oldest bastavail list
-		self.value = value
-		# create file
-		# file name could be "b/<set size number>"
-		# maybe use a script to create all possible filenames to ensure all of them pre-exist
-		# check file size to check is memory access is valid
-	#def writeToFile()
+
+		global bastCnt
+
+		if not bastAvail:
+			if(self.checkFileExists(bastCnt)):
+				self.value = bastCnt
+				bastCnt += 1
+			else:
+				pass # TODO: What to do when file does not exist??
+		else:
+			oldest = bastAvail.pop(0)
+			if(self.checkFileExists(oldest)):
+				self.value = oldest
+
+	
+	def checkFileExists(self, count):
+		return os.path.exists("./b/"+str(hex(count)))
+
+	def writeToFile(self, DSAST):
+		with open("./b/"+str(hex(self.value)), 'w') as file:
+			file.write(DSAST)
+
+	def readFromFile(self):
+		with open("./b/"+str(hex(self.value)), 'r') as file:
+			return file.read()
 
 
 class OIT:
@@ -96,43 +117,48 @@ class OIT:
 #		return self.key ^ OIT.key
 
 
-class AESCipher(object): 
-	#AESCipher class from: https://stackoverflow.com/questions/12524994/encrypt-decrypt-using-pycrypto-aes-256
+# class AESCipher(object): 
+# 	#AESCipher class from: https://stackoverflow.com/questions/12524994/encrypt-decrypt-using-pycrypto-aes-256
 
-    def __init__(self, key): 
-        self.bs = AES.block_size
-        self.key = hashlib.sha256(key.encode()).digest()
+#     def __init__(self, key): 
+#         self.bs = AES.block_size
+#         self.key = hashlib.sha256(key.encode()).digest()
 
-    def encrypt(self, raw):
-        raw = self._pad(raw)
-        iv = Random.new().read(AES.block_size)
-        cipher = AES.new(self.key, AES.MODE_CBC, iv)
-        return base64.b64encode(iv + cipher.encrypt(raw.encode()))
+#     def encrypt(self, raw):
+#         raw = self._pad(raw)
+#         iv = Random.new().read(AES.block_size)
+#         cipher = AES.new(self.key, AES.MODE_CBC, iv)
+#         return base64.b64encode(iv + cipher.encrypt(raw.encode()))
 
-    def decrypt(self, enc):
-        enc = base64.b64decode(enc)
-        iv = enc[:AES.block_size]
-        cipher = AES.new(self.key, AES.MODE_CBC, iv)
-        return self._unpad(cipher.decrypt(enc[AES.block_size:])).decode('utf-8')
+#     def decrypt(self, enc):
+#         enc = base64.b64decode(enc)
+#         iv = enc[:AES.block_size]
+#         cipher = AES.new(self.key, AES.MODE_CBC, iv)
+#         return self._unpad(cipher.decrypt(enc[AES.block_size:])).decode('utf-8')
 
-    def _pad(self, s):
-        return s + (self.bs - len(s) % self.bs) * chr(self.bs - len(s) % self.bs)
+#     def _pad(self, s):
+#         return s + (self.bs - len(s) % self.bs) * chr(self.bs - len(s) % self.bs)
 
-    @staticmethod
-    def _unpad(s):
-        return s[:-ord(s[len(s)-1:])]
+#     @staticmethod
+#     def _unpad(s):
+#         return s[:-ord(s[len(s)-1:])]
 
 
 if __name__ == '__main__':
 	
+	abast = BAST()
+	abast.writeToFile("This is a test")
+	print(abast.readFromFile())
+
+
 	# aOIT = OIT()
 
-	aGAST = GAST(1,1234)
-	bGAST = GAST(0,4321)
-	print(gastTable)
-	print(oitTable)
+	# aGAST = GAST(1,1234)
+	# bGAST = GAST(0,4321)
+	# print(gastTable)
+	# print(oitTable)
 	#print(oatTable)
-	print(bastTable)
+	# print(bastTable)
 	
 	# aOIT = OIT()
 	# aOAT = OAT(aOIT)
