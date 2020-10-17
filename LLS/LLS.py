@@ -55,7 +55,7 @@ class BAST:
 	def __init__(self, value):
 		# value: address where BAST's object points to
 		# probably do not pass this "value", increment number (bast counter)
-		# when free, put freed inti bastavailable list
+		# when free, put freed in the bastavailable list
 		# when creating a new bast, take oldest bastavail list
 		self.value = value
 		# create file
