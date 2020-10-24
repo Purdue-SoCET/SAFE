@@ -17,7 +17,19 @@ bastCnt = 0 # counter for next bast file if bastavail is empty
 # create read that is a DSAST offset
 # SAST to BAST Table
 
-
+#################################################################
+# dictionary (SAST, BAST)
+# GAST only serves to map BAST to a SAST, GAST is ephemeral
+#################################################################
+# Page 24
+# At any given point in time, the potentially vast array of data objects
+# (BASs) that are not mapped to DSASTs are inaccessible to any/all of a
+# system’s programs. A program cannot independently map a BAS to a
+# DSAST unless it knows the BAS’s associated GAST value (or one of its
+# associated GASTs), and even then it can only request a mapping from
+# its PMU
+#################################################################
+# Page 27 for table referencing DSAST Structure
 
 class GAST:
 	def __init__(self, permissions=bytes(2), encrypt=None, addr=None):
