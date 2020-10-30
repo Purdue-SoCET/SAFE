@@ -13,13 +13,10 @@ oatTable = {} # Hash tab
 bastTable = {} # List of bast
 bastAvail = [] # list of available bast file names
 bastCnt = 0 # counter for next bast file if bastavail is empty
+sastBast = {}
 
-# create read that is a DSAST offset
-# SAST to BAST Table
+# TODO: create read that is a DSAST offset
 
-#################################################################
-# dictionary (SAST, BAST)
-# GAST only serves to map BAST to a SAST, GAST is ephemeral
 #################################################################
 # Page 24
 # At any given point in time, the potentially vast array of data objects
@@ -89,11 +86,13 @@ class BAST:
 	def checkFileExists(self, count):
 		return os.path.exists("./b/"+str(hex(count)))
 
-	def writeToFile(self, DSAST):
+# TODO: CHANGE READ AND WRITE TO ACCEPT OFFSET VALUE
+
+	def writeToFile(self, DSAST, offset):
 		with open("./b/"+str(hex(self.value)), 'w') as file:
 			file.write(DSAST)
 
-	def readFromFile(self):
+	def readFromFile(self, offset):
 		with open("./b/"+str(hex(self.value)), 'r') as file:
 			return file.read()
 
@@ -112,7 +111,59 @@ class OIT:
 		if (self.domain, self.value) not in oitTable.keys():
 			oitTable[(self.domain, self.value)] = self.value
 
-	
+class DSAST:
+	# Structure(MSB to LSB): Way Limit, Size, Line Limit, Index, Offset, prob useless for python simulations but w/e
+	def __init__(self, index, lineLimit, size, wayLimit):
+		# Size: 0 = Large DSAST, 1 = Small DSAST
+		# Offset: 40 bits for small, 50 bit for large
+		# Index: (mb kinda the file name) indexing in a list of DSASTs
+		# Line limit: The least significant set-bit of the this field determines the partition size and the remaining upper bits of the field determine to which of the possible ranges, of the indicated size, the DSAST is restricted. If field bit 64 is set, then the
+		# remaining 4 bits (68:65) index a 1/16th size partition. If field bit 64 is clear and bit 65 is set, then bits 68:66 indicate the
+		# location of an even index aligned partition pair (partitions 0:1, 2:3, 4:5 ,,, or 14:15). If field bits 64 and 65 are both clear
+		# and bit 66 is set, then bits 68:67 indicate the location of a partition quad (partitions 0:3, 4:7, 8:11 or 12:15). If field bits
+		# 64 through 66 are all clear and bit 67 is set, then bit 68 indicates that associated data object is restricted to either the first
+		# half (partitions 1:7) or the last half (partitions 8:15) of the of a cache. A field value of 16 indicates that the associated
+		# data object enjoys unrestricted cache placement. The field value 0 is reserved.
+		# Way Limit: cache restrictions. 0=RESERVED, 1=no restriction, 2=only 1st half of the cache, 3=only second half of the cache
+
+		self.size = size
+		self.index = index
+		self.linelimit = lineLimit
+		self.waylimit = wayLimit
+		if(size): # small DSAST
+			self.offset = random.getrandbits(40)
+		else:
+			self.offset = random.getrandbits(50)
+		
+#################################################################
+# PMU asks for a mapping of GAST to some SAST, use this GAST to make
+# the SAST to BAST translation. Check if this GAST is mapped to a BAST already
+# being in use. Then, we cannot map it to two different SAST. If the 
+# BAST is mapped to a SAST, it returns that SAST, otherwise it returns 
+# the SAST given by PMU with the given mapping
+# dictionary (SAST, BAST)
+# GAST only serves to map BAST to a SAST, GAST is ephemeral
+#################################################################
+def mapBASTtoDSAST(DSAST, GAST):
+	# Check if GAST is mapped to a BAST
+	if ((GAST.domain, GAST.key) in bastTable.keys()):
+		aBast = bastTable[(GAST.domain, GAST.key)]
+	else:
+		aBast = BAST()
+
+	# Check if BAST is mapped to a DSAST
+	for dsast, bast in sastBast.items():
+		if(bast == aBast): # already mapped
+			return dsast
+
+	# Did not find a matching DSAST for the BAST
+	sastBast[DSAST] = aBast
+	return DSAST
+
+# Write cache line to DSAST's BAST
+def writeToBAST(DSAST):
+	pass
+
 # class OAT:
 #	def __init__(self, OIT):
 #		self.key = random.getrandbits(256)
