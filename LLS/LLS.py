@@ -86,14 +86,16 @@ class BAST:
 	def checkFileExists(self, count):
 		return os.path.exists("./b/"+str(hex(count)))
 
-# TODO: CHANGE READ AND WRITE TO ACCEPT OFFSET VALUE
-
+# TODO: FIGURE OUT WHAT IS BEING WRITTEN HERE, AS IT MOST LIKELY ISN'T THE DSAST ITSELF
+# 		MAYBE IT'S THE DSAS, BUT IDK IF WE GET THAT IN THE MN OR IF WE NEED TO FETCH IT
 	def writeToFile(self, DSAST, offset):
 		with open("./b/"+str(hex(self.value)), 'w') as file:
+			file.seek(offset)
 			file.write(DSAST)
 
 	def readFromFile(self, offset):
 		with open("./b/"+str(hex(self.value)), 'r') as file:
+			file.seek(offset)
 			return file.read()
 
 
@@ -161,8 +163,13 @@ def mapBASTtoDSAST(DSAST, GAST):
 	return DSAST
 
 # Write cache line to DSAST's BAST
-def writeToBAST(DSAST):
-	pass
+def writeToBAST(dsast):
+	try:
+		abast = sastBast[dsast]
+		abast.writeToFile(DSAST=dsast, offset=DSAST.offset)
+		return
+	except:
+		print("Could not write to DSAST's BAST\n")
 
 # class OAT:
 #	def __init__(self, OIT):
