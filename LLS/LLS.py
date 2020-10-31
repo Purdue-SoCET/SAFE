@@ -7,7 +7,7 @@ import os
 # from Crypto import Random
 # from Crypto.Cipher import AES
 
-gastTable = {} # Hash table
+gastTable = {} # Hash table, gast to bast mapping
 oitTable = {} # could be a tree also
 oatTable = {} # Hash tab
 bastTable = {} # List of bast
@@ -45,10 +45,11 @@ class GAST:
 		if(encrypt):
 			# aOAT = OAT(aOIT)
 			# gastTable[(self.domain, self.key)] = aOAT.value # not sure about this part, dave said to ignore OAT for the moment
-			aBAST = BAST(addr)
+			aBAST = BAST()
 			bastTable[(self.domain, self.key)] = aBAST # BAST is the GAST's value
+			# gastTable[aBAST] = 
 		else:
-			aBAST = BAST(addr) # address for tagged data
+			aBAST = BAST() # address for tagged data
 			bastTable[(self.domain, self.key)] = aBAST
 		# TODO: also have to add a corresponding BAST/OAT
 		
@@ -62,6 +63,7 @@ class GAST:
 	def free(self):
 		del bastTable[(self.domain, self.key)]
 
+# what does the LLS do if the offset provided in the DSR is larger than the file size referenced by the BAST
 
 class BAST:
 	def __init__(self):
@@ -76,6 +78,10 @@ class BAST:
 				self.value = bastCnt
 				bastCnt += 1
 			else:
+				with open("./b/"+str(hex(bastCnt))) as file:
+					file.write()
+				self.value = bastCnt
+				bastCnt +=1
 				pass # TODO: What to do when file does not exist??
 		else:
 			oldest = bastAvail.pop(0)
@@ -88,11 +94,14 @@ class BAST:
 
 # TODO: FIGURE OUT WHAT IS BEING WRITTEN HERE, AS IT MOST LIKELY ISN'T THE DSAST ITSELF
 # 		MAYBE IT'S THE DSAS, BUT IDK IF WE GET THAT IN THE MN OR IF WE NEED TO FETCH IT
+
+#		Where is the data in the packet when writing to memory
+	# if offset is larger, create space for the write
 	def writeToFile(self, DSAST, offset):
 		with open("./b/"+str(hex(self.value)), 'w') as file:
 			file.seek(offset)
-			file.write(DSAST)
-
+			file.write(str(DSAST))
+	# if offset is larger, raise exception, send back msg to PMU that the process is trying to do funny stuff
 	def readFromFile(self, offset):
 		with open("./b/"+str(hex(self.value)), 'r') as file:
 			file.seek(offset)
@@ -115,7 +124,7 @@ class OIT:
 
 class DSAST:
 	# Structure(MSB to LSB): Way Limit, Size, Line Limit, Index, Offset, prob useless for python simulations but w/e
-	def __init__(self, index, lineLimit, size, wayLimit):
+	def __init__(self, index=0, lineLimit=0, size=0, wayLimit=0):
 		# Size: 0 = Large DSAST, 1 = Small DSAST
 		# Offset: 40 bits for small, 50 bit for large
 		# Index: (mb kinda the file name) indexing in a list of DSASTs
@@ -146,10 +155,12 @@ class DSAST:
 # dictionary (SAST, BAST)
 # GAST only serves to map BAST to a SAST, GAST is ephemeral
 #################################################################
-def mapBASTtoDSAST(DSAST, GAST):
+
+# open file when doing this mapping, keep track of opened files
+def mapBASTtoDSAST(dsast, gast):
 	# Check if GAST is mapped to a BAST
-	if ((GAST.domain, GAST.key) in bastTable.keys()):
-		aBast = bastTable[(GAST.domain, GAST.key)]
+	if ((gast.domain, gast.key) in bastTable.keys()):
+		aBast = bastTable[(gast.domain, gast.key)]
 	else:
 		aBast = BAST()
 
@@ -159,8 +170,8 @@ def mapBASTtoDSAST(DSAST, GAST):
 			return dsast
 
 	# Did not find a matching DSAST for the BAST
-	sastBast[DSAST] = aBast
-	return DSAST
+	sastBast[dsast] = aBast
+	return dsast
 
 # Write cache line to DSAST's BAST
 def writeToBAST(dsast):
@@ -170,6 +181,24 @@ def writeToBAST(dsast):
 		return
 	except:
 		print("Could not write to DSAST's BAST\n")
+
+def openFile(dsast, gast, gastTable=bastTable, sastbast=sastBast):
+	# does anything return to the message queue except ack
+	abast = bastTable[gast]
+
+	# dont have this inside this open function, only do it once
+	bastsast = {v: k for k, v in sastbast.items()}
+	bastsast[abast] = dsast
+	sastbast = {v: k for k, v in bastsast.items()}
+	return sastbast
+	# what happens if no bast is mapped to the provided gast
+
+def getBASTfromDSAST(dsast, sastbast=sastBast):
+	# what happens if there is no dsast mapping in the table
+	return sastbast[dsast]
+
+# open file (and creating file), close file (retire the bast), read, write, invalidate (same as retiring), respond to invalidations
+
 
 # class OAT:
 #	def __init__(self, OIT):
@@ -214,22 +243,19 @@ def writeToBAST(dsast):
 
 if __name__ == '__main__':
 	
-	abast = BAST()
-	abast.writeToFile("This is a test")
-	print(abast.readFromFile())
+	for i in range(0,10):
+		name = "gast"+str(i)
+		name = GAST()
 
-
-	# aOIT = OIT()
-
-	# aGAST = GAST(1,1234)
-	# bGAST = GAST(0,4321)
-	# print(gastTable)
-	# print(oitTable)
-	#print(oatTable)
 	# print(bastTable)
-	
-	# aOIT = OIT()
-	# aOAT = OAT(aOIT)
-	# print(type(aOIT.key[0]))
-	#print("Domain: {}\nValue: {}\nKey: {}\n".format(aOIT.domain, aOIT.value, aOIT.key))
-	#print("Key: {}\nValue: {}".format(aOAT.key, aOAT.value))
+
+	dsast = DSAST()
+	gastlist = [gast for gast in bastTable]
+	agast = gastlist[0]
+	print(agast)
+	# mapBASTtoDSAST(dsast, agast)
+	sastBast = openFile(dsast, agast)
+
+	abast = sastBast[dsast]
+	print(abast.value)
+	abast.writeToFile(dsast, 0)
