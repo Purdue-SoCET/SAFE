@@ -17,6 +17,7 @@ sastBast = {} # maps DSAST to a BAST
 fpList = [] # Lists file pointers from BASTS, where the index is the BAST value
 
 class GAST:
+	global bastTable
 	def __init__(self, permissions=bytes(2), encrypt=None, addr=None):
 		# permissions: permissions for given GAST, are the first half of the domain
 		# encrypt: is a flag for whether or not to encrypt the GAST
@@ -108,14 +109,13 @@ class BAST:
 		global bastTable
 		gastTable = {v: k for k, v in bastTable.items()}
 		agast = gastTable[self]
-		bastTable.pop((agast.domain, agast.key))
+		bastAvail.append(bastTable.pop((agast.domain, agast.key)).value)
 
 		# remove mapping to DSAST
 		global sastBast
 		bastsast = {v: k for k, v in sastBast.items()}
 		dsast = bastsast[self]
 		sastBast.pop(dsast)
-
 		return
 
 class OIT:
@@ -208,7 +208,7 @@ def invalidateDSAST(dsast):
 	gastTable = {v: k for k, v in bastTable.items()}
 	# if there's already a GAST mapping to the BAST
 	# DO WE NEED TO RETIRE THE BAST AS WELL??
-	if(agast = gastTable[abast]):
+	if(agast == gastTable[abast]):
 		return agast
 	else: # create GAST for bast
 		agast = GAST()
