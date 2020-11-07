@@ -7,26 +7,13 @@ import os
 # from Crypto import Random
 # from Crypto.Cipher import AES
 
-gastTable = {} # Hash table, gast to bast mapping
+gastTable = {} # Hash table, bast to gast mapping, not in use
 oitTable = {} # could be a tree also
-oatTable = {} # Hash tab
-bastTable = {} # List of bast
+oatTable = {} # Hash table
+bastTable = {} # List of bast, key: GAST key and domain, value: BAST
 bastAvail = [] # list of available bast file names
 bastCnt = 0 # counter for next bast file if bastavail is empty
-sastBast = {}
-
-# TODO: create read that is a DSAST offset
-
-#################################################################
-# Page 24
-# At any given point in time, the potentially vast array of data objects
-# (BASs) that are not mapped to DSASTs are inaccessible to any/all of a
-# system’s programs. A program cannot independently map a BAS to a
-# DSAST unless it knows the BAS’s associated GAST value (or one of its
-# associated GASTs), and even then it can only request a mapping from
-# its PMU
-#################################################################
-# Page 27 for table referencing DSAST Structure
+sastBast = {} # maps DSAST to a BAST
 
 class GAST:
 	def __init__(self, permissions=bytes(2), encrypt=None, addr=None):
@@ -67,9 +54,6 @@ class GAST:
 
 class BAST:
 	def __init__(self):
-		# probably do not pass this "value", increment number (bast counter)
-		# when free, put freed in the bastavailable list
-		# when creating a new bast, take oldest bastavail list
 
 		global bastCnt
 
@@ -92,10 +76,6 @@ class BAST:
 	def checkFileExists(self, count):
 		return os.path.exists("./b/"+str(hex(count)))
 
-# TODO: FIGURE OUT WHAT IS BEING WRITTEN HERE, AS IT MOST LIKELY ISN'T THE DSAST ITSELF
-# 		MAYBE IT'S THE DSAS, BUT IDK IF WE GET THAT IN THE MN OR IF WE NEED TO FETCH IT
-
-#		Where is the data in the packet when writing to memory
 	# if offset is larger, create space for the write
 	def writeToFile(self, DSAST, offset):
 		with open("./b/"+str(hex(self.value)), 'w') as file:
@@ -107,6 +87,20 @@ class BAST:
 			file.seek(offset)
 			return file.read()
 
+	def retire(self):
+		# remove mapping from gast to bast
+		global bastTable
+		gastTable = {v: k for k, v in bastTable.items()}
+		agast = gastTable[self]
+		bastTable.pop((agast.domain, agast.key))
+
+		# remove mapping to DSAST
+		global sastBast
+		bastsast = {v: k for k, v in sastBast.items()}
+		dsast = bastsast[self]
+		sastBast.pop(dsast)
+
+		return
 
 class OIT:
 	def __init__(self, permissions):
@@ -128,13 +122,8 @@ class DSAST:
 		# Size: 0 = Large DSAST, 1 = Small DSAST
 		# Offset: 40 bits for small, 50 bit for large
 		# Index: (mb kinda the file name) indexing in a list of DSASTs
-		# Line limit: The least significant set-bit of the this field determines the partition size and the remaining upper bits of the field determine to which of the possible ranges, of the indicated size, the DSAST is restricted. If field bit 64 is set, then the
-		# remaining 4 bits (68:65) index a 1/16th size partition. If field bit 64 is clear and bit 65 is set, then bits 68:66 indicate the
-		# location of an even index aligned partition pair (partitions 0:1, 2:3, 4:5 ,,, or 14:15). If field bits 64 and 65 are both clear
-		# and bit 66 is set, then bits 68:67 indicate the location of a partition quad (partitions 0:3, 4:7, 8:11 or 12:15). If field bits
-		# 64 through 66 are all clear and bit 67 is set, then bit 68 indicates that associated data object is restricted to either the first
-		# half (partitions 1:7) or the last half (partitions 8:15) of the of a cache. A field value of 16 indicates that the associated
-		# data object enjoys unrestricted cache placement. The field value 0 is reserved.
+		# Line limit: The least significant set-bit of the this field determines the partition size and the remaining 
+		# upper bits of the field determine to which of the possible ranges, of the indicated size, the DSAST is restricted.
 		# Way Limit: cache restrictions. 0=RESERVED, 1=no restriction, 2=only 1st half of the cache, 3=only second half of the cache
 
 		self.size = size
@@ -183,8 +172,10 @@ def writeToBAST(dsast):
 		print("Could not write to DSAST's BAST\n")
 
 def openFile(dsast, gast, gastTable=bastTable, sastbast=sastBast):
-	# does anything return to the message queue except ack
-	abast = bastTable[gast]
+	try:
+		abast = bastTable[gast]
+	except:
+		print("Did not find a matching BAST for the provided GAST\n")
 
 	# dont have this inside this open function, only do it once
 	bastsast = {v: k for k, v in sastbast.items()}
@@ -194,8 +185,20 @@ def openFile(dsast, gast, gastTable=bastTable, sastbast=sastBast):
 	# what happens if no bast is mapped to the provided gast
 
 def getBASTfromDSAST(dsast, sastbast=sastBast):
-	# what happens if there is no dsast mapping in the table
 	return sastbast[dsast]
+
+def invalidateDSAST(dsast):
+	abast = sastbast.pop(dsast)
+	gastTable = {v: k for k, v in bastTable.items()}
+	# if there's already a GAST mapping to the BAST
+	# DO WE NEED TO RETIRE THE BAST AS WELL??
+	if(agast = gastTable[abast]):
+		return agast
+	else: # create GAST for bast
+		agast = GAST()
+		bastTable[(agast.domain, agast.key)] = abast
+		return agast
+
 
 # open file (and creating file), close file (retire the bast), read, write, invalidate (same as retiring), respond to invalidations
 
