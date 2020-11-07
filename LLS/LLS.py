@@ -16,7 +16,15 @@ bastCnt = 0 # counter for next bast file if bastavail is empty
 sastBast = {} # maps DSAST to a BAST
 fpList = [] # Lists file pointers from BASTS, where the index is the BAST value
 
+################################################################################
+# TWO WAY DICTIONARY
+# https://stackoverflow.com/questions/1456373/two-way-reverse-map
+# https://stackoverflow.com/questions/3318625/how-to-implement-an-efficient-bidirectional-hash-table?rq=1
+# https://stackoverflow.com/questions/7657457/finding-key-from-value-in-python-dictionary
+################################################################################
+
 class GAST:
+	global bastTable
 	def __init__(self, permissions=bytes(2), encrypt=None, addr=None):
 		# permissions: permissions for given GAST, are the first half of the domain
 		# encrypt: is a flag for whether or not to encrypt the GAST
@@ -57,6 +65,7 @@ class BAST:
 	def __init__(self):
 
 		global bastCnt
+		global bastAvail
 
 		if not bastAvail:
 			if(self.checkFileExists(bastCnt)):
@@ -94,11 +103,13 @@ class BAST:
 			return file.read()
 
 	def open(self):
+		global fpList
 		fp = open("./b/"+str(hex(self.value)), 'r')
 		fpList[self] = fp
 		return fp
 
 	def close(self):
+		global fpList
 		fp = fpList[self]
 		fp.close()
 		return
@@ -120,6 +131,7 @@ class BAST:
 
 class OIT:
 	def __init__(self, permissions):
+		global oitTable
 		# first 16 bits of domain indicate permissions and last 16 bits are actual domain.
 		self.permissions = permissions
 		# establish domains, not random
@@ -163,6 +175,8 @@ class DSAST:
 
 # open file when doing this mapping, keep track of opened files
 def mapBASTtoDSAST(dsast, gast):
+	global bastTable
+	global sastBast
 	# Check if GAST is mapped to a BAST
 	if ((gast.domain, gast.key) in bastTable.keys()):
 		aBast = bastTable[(gast.domain, gast.key)]
@@ -180,6 +194,7 @@ def mapBASTtoDSAST(dsast, gast):
 
 # Write cache line to DSAST's BAST
 def writeToBAST(dsast):
+	global sastBast
 	try:
 		abast = sastBast[dsast]
 		abast.writeToFile(DSAST=dsast, offset=DSAST.offset)
@@ -204,7 +219,9 @@ def getBASTfromDSAST(dsast, sastbast=sastBast):
 	return sastbast[dsast]
 
 def invalidateDSAST(dsast):
-	abast = sastbast.pop(dsast)
+	global sastBast
+	global bastTable
+	abast = sastBast.pop(dsast)
 	gastTable = {v: k for k, v in bastTable.items()}
 	# if there's already a GAST mapping to the BAST
 	# DO WE NEED TO RETIRE THE BAST AS WELL??
