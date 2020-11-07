@@ -14,6 +14,7 @@ bastTable = {} # List of bast, key: GAST key and domain, value: BAST
 bastAvail = [] # list of available bast file names
 bastCnt = 0 # counter for next bast file if bastavail is empty
 sastBast = {} # maps DSAST to a BAST
+fpList = [] # Lists file pointers from BASTS, where the index is the BAST value
 
 class GAST:
 	def __init__(self, permissions=bytes(2), encrypt=None, addr=None):
@@ -84,8 +85,23 @@ class BAST:
 	# if offset is larger, raise exception, send back msg to PMU that the process is trying to do funny stuff
 	def readFromFile(self, offset):
 		with open("./b/"+str(hex(self.value)), 'r') as file:
+			# check max offset
+			file.seek(0, SEEK_END)
+			max_off = file.tell()
+			if(offset > max_off):
+				raise ValueError
 			file.seek(offset)
 			return file.read()
+
+	def open(self):
+		fp = open("./b/"+str(hex(self.value)), 'r')
+		fpList[self] = fp
+		return fp
+
+	def close(self):
+		fp = fpList[self]
+		fp.close()
+		return
 
 	def retire(self):
 		# remove mapping from gast to bast
