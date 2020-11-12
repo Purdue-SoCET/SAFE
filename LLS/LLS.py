@@ -87,10 +87,13 @@ class BAST:
 		return os.path.exists("./b/"+str(hex(count)))
 
 	# if offset is larger, create space for the write
-	def writeToFile(self, DSAST, offset):
+	def writeToFile(self, value, offset):
 		with open("./b/"+str(hex(self.value)), 'w') as file:
 			file.seek(offset)
-			file.write(str(DSAST))
+			file.write(str(value))
+
+	# TODO: make function for partial writes, current one only accepts offset and writes entire packet
+
 	# if offset is larger, raise exception, send back msg to PMU that the process is trying to do funny stuff
 	def readFromFile(self, offset):
 		with open("./b/"+str(hex(self.value)), 'r') as file:
@@ -144,11 +147,12 @@ class OIT:
 			oitTable[(self.domain, self.value)] = self.value
 
 class DSAST:
-	# Structure(MSB to LSB): Way Limit, Size, Line Limit, Index, Offset, prob useless for python simulations but w/e
+	# Structure(MSB to LSB): Way Limit, Size, Line Limit, Index, Offset, prob useless for python simulations
 	def __init__(self, index=0, lineLimit=0, size=0, wayLimit=0):
 		# Size: 0 = Large DSAST, 1 = Small DSAST
 		# Offset: 40 bits for small, 50 bit for large
 		# Index: (mb kinda the file name) indexing in a list of DSASTs
+		# only cache fields
 		# Line limit: The least significant set-bit of the this field determines the partition size and the remaining 
 		# upper bits of the field determine to which of the possible ranges, of the indicated size, the DSAST is restricted.
 		# Way Limit: cache restrictions. 0=RESERVED, 1=no restriction, 2=only 1st half of the cache, 3=only second half of the cache
@@ -179,8 +183,10 @@ def mapBASTtoDSAST(dsast, gast):
 	# Check if GAST is mapped to a BAST
 	if ((gast.domain, gast.key) in bastTable.keys()):
 		aBast = bastTable[(gast.domain, gast.key)]
-	else:
+	elif(not gast):
 		aBast = BAST()
+	else:
+		return "Failed to find BAST"
 
 	# Check if BAST is mapped to a DSAST
 	for dsast, bast in sastBast.items():
@@ -190,6 +196,10 @@ def mapBASTtoDSAST(dsast, gast):
 	# Did not find a matching DSAST for the BAST
 	sastBast[dsast] = aBast
 	return dsast
+
+def gastRequest(dsast):
+	# randomly pick a gast, map it to the dsast's bast
+	pass
 
 # Write cache line to DSAST's BAST
 def writeToBAST(dsast):
@@ -201,18 +211,34 @@ def writeToBAST(dsast):
 	except:
 		print("Could not write to DSAST's BAST\n")
 
-def openFile(dsast, gast, gastTable=bastTable, sastbast=sastBast):
+def openFile(dsast, gast):
+	global bastTable
+	global sastBast
 	try:
 		abast = bastTable[gast]
 	except:
 		print("Did not find a matching BAST for the provided GAST\n")
 
+# need to address: when gast has an existing mapping, return DSAST mapped
+
 	# dont have this inside this open function, only do it once
-	bastsast = {v: k for k, v in sastbast.items()}
+	bastsast = {v: k for k, v in sastBast.items()}
 	bastsast[abast] = dsast
 	sastbast = {v: k for k, v in bastsast.items()}
 	return sastbast
 	# what happens if no bast is mapped to the provided gast
+
+def closeFile(dsast):
+	# just unmap dsast from its bast
+	pass
+
+def saveFile(dsast, permissions):
+	# TODO
+	return agast
+
+def deleteFile(gast):
+	# retire the gast. if the gast is the only reference to its bast, also get rid of bast
+	pass
 
 def getBASTfromDSAST(dsast, sastbast=sastBast):
 	return sastbast[dsast]
@@ -220,20 +246,52 @@ def getBASTfromDSAST(dsast, sastbast=sastBast):
 def invalidateDSAST(dsast):
 	global sastBast
 	global bastTable
-	abast = sastBast.pop(dsast)
-	gastTable = {v: k for k, v in bastTable.items()}
-	# if there's already a GAST mapping to the BAST
-	# DO WE NEED TO RETIRE THE BAST AS WELL??
-	if(agast == gastTable[abast]):
-		return agast
-	else: # create GAST for bast
-		agast = GAST()
-		bastTable[(agast.domain, agast.key)] = abast
-		return agast
 
+	# Need to make sure the cache sends back msg that it has written back everything it need to associated with the DSAST
+	sendMsgRetire()
+	if(rcvOkToUnmap()):
+		abast = sastBast.pop(dsast)
+		gastTable = {v: k for k, v in bastTable.items()}
+	# if there's already a GAST mapping to the BAST
+	# JUST RETURN ACK OR NACK
+		return ACK
+	# if(agast == gastTable[abast]):
+	# 	return agast
+	# else: # create GAST for bast
+	# 	agast = GAST()
+	# 	bastTable[(agast.domain, agast.key)] = abast
+	# 	return agast
+
+# 16k packets for now
+def writeThrough(dsast, packet):
+	global sastBast
+	abast = sastBast[dsast]
+	abast.writeToFile(packet, dsast.offset)
+
+def sendMsgRetire():
+	return "Retire cache line x"
+
+def rcvOkToUnmap():
+	# Wait for CH to answer back if its ok from sendMsgRetire
+	pass
+
+# TB for LLS
+# Scenario based testing model. Create objects, write to them, open, close, read, write, etc...
+# Make sure we can create objs and put data into them. Use 4 byte cache model for testing.
+# After basic testing is implemented, randomize accesses. Add a list to keep track of BAS sizes.
+# Test for invalid inputs (size is off etc.) to ensure it sends back msg to PMU/CH.
+# Test case for gain a msg to retire bast
+
+# TODO: adjust openFile function. if dont find GAST -> BAST mapping, create a new one and map it to a DSAST
+# TODO: finish off invalidateDSAST to include different msgs and then TBs
 
 # open file (and creating file), close file (retire the bast), read, write, invalidate (same as retiring), respond to invalidations
 
+# operations for CH
+# read, write, write through (when L5 writes data to the LLS and line becomes clean in the L5, for the LLS it looks the same as write),
+# invalidation/discard (LLS throws away cache line) can combine write through with discard, will implement write in later
+# operations for PMU
+# create data obj, write data obj, read data obj, close data obj
 
 # class OAT:
 #	def __init__(self, OIT):
