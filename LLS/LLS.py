@@ -8,8 +8,8 @@ import os
 # from Crypto.Cipher import AES
 
 gastTable = {} # Hash table, bast to gast mapping, not in use
-oitTable = {} # could be a tree also
-oatTable = {} # Hash table
+oitTable = [] # could be a tree indexed by lookup uses, but functionally is just a list 
+oatTable = {} # Hash table, index should be OIT's value
 bastTable = {} # List of bast, key: GAST key and domain, value: BAST
 bastAvail = [] # list of available bast file names
 bastCnt = 0 # counter for next bast file if bastavail is empty
@@ -43,7 +43,7 @@ class GAST:
 			# gastTable[(self.domain, self.key)] = aOAT.value # not sure about this part, dave said to ignore OAT for the moment
 			aBAST = BAST()
 			bastTable[(self.domain, self.key)] = aBAST # BAST is the GAST's value
-			# gastTable[aBAST] = 
+			gastTable[aBAST] = 
 		else:
 			aBAST = BAST() # address for tagged data
 			bastTable[(self.domain, self.key)] = aBAST
@@ -214,31 +214,56 @@ def writeToBAST(dsast):
 def openFile(dsast, gast):
 	global bastTable
 	global sastBast
-	try:
+	
+	if(gast != None):
 		abast = bastTable[gast]
-	except:
-		print("Did not find a matching BAST for the provided GAST\n")
-
+	else:
+		agast = GAST()
+		abast = bastTable[gast]
 # need to address: when gast has an existing mapping, return DSAST mapped
+	#########################################################
+	# 	NEW NOTE
+	# If DSAST is not found in SAST to BAST table, should we allocate a new BAST?
 
-	# dont have this inside this open function, only do it once
+	if(not sastBast[dsast]):
+		abast = BAST()
+
 	bastsast = {v: k for k, v in sastBast.items()}
 	bastsast[abast] = dsast
-	sastbast = {v: k for k, v in bastsast.items()}
-	return sastbast
+	sastBast[dsast] = abast
+	return dsast
+	# sastbast = {v: k for k, v in bastsast.items()}
+	# return sastbast
 	# what happens if no bast is mapped to the provided gast
 
 def closeFile(dsast):
 	# just unmap dsast from its bast
-	pass
+	global sastBast
+	sastBast.pop(dsast)
+	return
 
 def saveFile(dsast, permissions):
 	# TODO
+	global sastBast
+	global gastTable
+
+	agast = GAST(permissions=permissions)
+	abast = sastBast[dsast]
+	bastTable[agast] = abast
 	return agast
 
 def deleteFile(gast):
 	# retire the gast. if the gast is the only reference to its bast, also get rid of bast
-	pass
+	global bastTable
+	abast = bastTable.pop(gast)
+	# now need to check if this gast was the last reference to the bast
+
+	#############################################################################
+	# 	NEW NOTES
+	# If there are no more DSASTS using a BAST, but there be a GAST tied to it, then are we still alowed to retire the BAST?
+	# Does the PMU know which GASTs are tied to which DSASTs
+	#############################################################################
+	return
 
 def getBASTfromDSAST(dsast, sastbast=sastBast):
 	return sastbast[dsast]
@@ -255,25 +280,27 @@ def invalidateDSAST(dsast):
 	# if there's already a GAST mapping to the BAST
 	# JUST RETURN ACK OR NACK
 		return ACK
-	# if(agast == gastTable[abast]):
-	# 	return agast
-	# else: # create GAST for bast
-	# 	agast = GAST()
-	# 	bastTable[(agast.domain, agast.key)] = abast
-	# 	return agast
 
 # 16k packets for now
 def writeThrough(dsast, packet):
 	global sastBast
+	#############################################################################
+	# NEW NOTES
+	# For write through, if there's no DSAST associated, should we raise Exception?
+	
 	abast = sastBast[dsast]
 	abast.writeToFile(packet, dsast.offset)
+	return
 
 def sendMsgRetire():
 	return "Retire cache line x"
 
 def rcvOkToUnmap():
 	# Wait for CH to answer back if its ok from sendMsgRetire
-	pass
+	returnmsg = -1 # 1 if ok, 0 if not ok
+	while(returnmsg != 0 || returnmsg != 1):
+		pass
+	return returnmsg
 
 # TB for LLS
 # Scenario based testing model. Create objects, write to them, open, close, read, write, etc...
