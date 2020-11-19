@@ -223,7 +223,8 @@ def openFile(dsast, gast):
 # need to address: when gast has an existing mapping, return DSAST mapped
 	#########################################################
 	# 	NEW NOTE
-	# If DSAST is not found in SAST to BAST table, should we allocate a new BAST?
+	# If DSAST is not found in SAST to BAST table and the GAST is null, should we allocate a new BAST? No, this happens in createfile
+	# open and create
 
 	if(not sastBast[dsast]):
 		abast = BAST()
@@ -235,6 +236,10 @@ def openFile(dsast, gast):
 	# sastbast = {v: k for k, v in bastsast.items()}
 	# return sastbast
 	# what happens if no bast is mapped to the provided gast
+
+def createFile(dsast):
+	# create a bast associated with the dsast, if there's a mapping already, scrap that
+	pass
 
 def closeFile(dsast):
 	# just unmap dsast from its bast
@@ -287,6 +292,9 @@ def writeThrough(dsast, packet):
 	#############################################################################
 	# NEW NOTES
 	# For write through, if there's no DSAST associated, should we raise Exception?
+	# always an exception for the entire LLS
+
+	
 	
 	abast = sastBast[dsast]
 	abast.writeToFile(packet, dsast.offset)
@@ -322,8 +330,8 @@ def rcvOkToUnmap():
 
 # class OAT:
 #	def __init__(self, OIT):
-#		self.key = random.getrandbits(256)
-#		self.value = self.checksum(OIT)
+#		self.key = random.getrandbits(256) # will prob be an AES key, I think
+#		self.value = self.checksum(OIT)	   # checksum using the data referenced by the OIT and the self.key
 # 		#TODO: create entry in OAT Table, index is OIT, value is self
 		# the manual says we index by the OIT value, but wth is this value...
 		# just using the OIT itself for the time being
@@ -331,6 +339,9 @@ def rcvOkToUnmap():
 		#TODO: encrypt data and assign self.key to be the key of the encryption 
 
 #	def checksum(self, OIT): 
+# checksum for every 16k of data
+# offset of data block as a rotation on the key, so that given the base key in the OAT
+# you can use a different key for every 16k block, vector of checksums
 #		return self.key ^ OIT.key
 
 
