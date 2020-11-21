@@ -2,6 +2,7 @@
 import random
 import sys
 import os
+import typing
 # import base64
 # import hashlib
 # from Crypto import Random
@@ -14,7 +15,7 @@ bastTable = {} # List of bast, key: GAST key and domain, value: BAST
 bastAvail = [] # list of available bast file names
 bastCnt = 0 # counter for next bast file if bastavail is empty
 sastBast = {} # maps DSAST to a BAST
-fpList = [] # Lists file pointers from BASTS, where the index is the BAST value
+fpList = {} # Lists file pointers from BASTS, where the index is the BAST value
 
 ################################################################################
 # TWO WAY DICTIONARY
@@ -72,6 +73,7 @@ class BAST:
 				self.value = bastCnt
 				bastCnt += 1
 			else:
+				# maybe do not need this open/write?
 				with open("./b/"+str(hex(bastCnt))) as file:
 					file.write()
 				self.value = bastCnt
@@ -107,14 +109,15 @@ class BAST:
 
 	def open(self):
 		global fpList
-		fp = open("./b/"+str(hex(self.value)), 'r')
+		fp = open("./b/"+str(hex(self.value)), "r+")
 		fpList[self] = fp
 		return fp
 
 	def close(self):
 		global fpList
 		fp = fpList[self]
-		fp.close()
+		if (type(fp) == typing.IO):
+			fp.close()
 		return
 
 	def retire(self):
@@ -123,7 +126,8 @@ class BAST:
 		gastTable = {v: k for k, v in bastTable.items()}
 		agast = gastTable[self]
 		bastAvail.append(bastTable.pop((agast.domain, agast.key)).value)
-
+		self.close()
+		fpLst[self.value] = 0
 		# remove mapping to DSAST
 		global sastBast
 		bastsast = {v: k for k, v in sastBast.items()}
@@ -273,8 +277,9 @@ def deleteFile(gast):
 	#############################################################################
 	return
 
-def getBASTfromDSAST(dsast, sastbast=sastBast):
-	return sastbast[dsast]
+def getBASTfromDSAST(dsast):
+	global sastBast
+	return sastBast[dsast]
 
 def invalidateDSAST(dsast):
 	global sastBast

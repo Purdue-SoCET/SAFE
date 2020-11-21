@@ -15,38 +15,65 @@ from LLS import *
 # closeFile(dsast)
 # saveFile(dsast, permissions)
 # deleteFile(gast)
-# getBASTfromDSAST(dsast, sastbast=sastBast)
+# getBASTfromDSAST(dsast)
 # invalidateDSAST(dsast)
 # writeThrough(dsast, packet)
 # sendMsgRetire()							# dummy implementation
 # rcvOkToUnmap()							# dummy implementation
 
-def testFunc(func):
-	if(func):
-		print("Test {} success".format(func.__name__))
-	else:
-		print("Test {} failed".format(func.__name__))
+dsastList = []	# Lists of created DSASTS, mimmic PMU's knowledge of dsasts/gasts
+gastList = []	# Lists of created GASTS
 
-def testCreatingFile():
+def testFunc(func, funcname):
+	if(func==1):
+		print("{} success".format(funcname))
+	else:
+		print("{} failed: {}".format(funcname, retval))
+
+# Question: How to test saveFile?
+
+def testCreateFile():
 	global sastBast
 	# create dsast to bast mapping
 	adsast = DSAST()
+	dsastList.append(adsast)
 	agast = GAST()
+	gastList.append(agast)
 	mapBASTtoDSAST(adsast, agast)
 	abast = bastTable[(agast.domain, agast.key)]
-	assert sastBast[adsast] == abast
+	if not (sastBast[adsast] == abast):
+		return "Did not map DSAST to BAST from GAST reference"
 
+	# TODO: open file, write to it
+	fp = abast.open()
+	string = "A"*50
+	fp.write(string)
+	
 	# call create file to check if new bast is associated to given dsast
 	createFile(adsast)
-	assert type(sastBast[adsast]) == BAST
-	assert sastBast[adsast] != abast
+	if not (sastBast[adsast] != abast):
+		return "BASTS are the same after creating file"
 
+	# check if second fp is valid
+	abast2 = getBASTfromDSAST(adsast)
+	fp2 = abast2.open()
+	string = "B"*50
+	fp2.write(string)
+	if not (fp.name != fp2.name):
+		return "BAST file is the same after creating file"
+	
 	return 1
+
+def testDeletFile():
+	global sastBast
+	abast = getBASTfromDSAST(dsastList[0])
+
+	pass
 
 
 def main():
 
-	testFunc(testCreatingFile)
+	testFunc(testCreateFile(), "testCreateFile()")
 
 
 if __name__ == "__main__":
