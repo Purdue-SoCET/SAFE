@@ -239,7 +239,10 @@ def openFile(dsast, gast):
 
 def createFile(dsast):
 	# create a bast associated with the dsast, if there's a mapping already, scrap that
-	pass
+	global sastBast
+	abast = BAST();
+	sastBast[dsast] = aBast
+	return
 
 def closeFile(dsast):
 	# just unmap dsast from its bast
@@ -309,13 +312,6 @@ def rcvOkToUnmap():
 	while(returnmsg != 0 || returnmsg != 1):
 		pass
 	return returnmsg
-
-# TB for LLS
-# Scenario based testing model. Create objects, write to them, open, close, read, write, etc...
-# Make sure we can create objs and put data into them. Use 4 byte cache model for testing.
-# After basic testing is implemented, randomize accesses. Add a list to keep track of BAS sizes.
-# Test for invalid inputs (size is off etc.) to ensure it sends back msg to PMU/CH.
-# Test case for gain a msg to retire bast
 
 # TODO: adjust openFile function. if dont find GAST -> BAST mapping, create a new one and map it to a DSAST
 # TODO: finish off invalidateDSAST to include different msgs and then TBs
