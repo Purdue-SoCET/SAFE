@@ -43,7 +43,7 @@ class GAST:
 			# gastTable[(self.domain, self.key)] = aOAT.value # not sure about this part, dave said to ignore OAT for the moment
 			aBAST = BAST()
 			bastTable[(self.domain, self.key)] = aBAST # BAST is the GAST's value
-			gastTable[aBAST] = 
+			gastTable[aBAST] = self
 		else:
 			aBAST = BAST() # address for tagged data
 			bastTable[(self.domain, self.key)] = aBAST
@@ -143,8 +143,8 @@ class OIT:
 		self.value = bytes(4) # 32 bit representation of BAST
 		# need to check if key does not exist in domain before addying entry to hash table
 		# not sure if this is what goes into the oitTable...
-		if (self.domain, self.value) not in oitTable.keys():
-			oitTable[(self.domain, self.value)] = self.value
+		if (self.domain, self.value) not in oitTable:
+			oitTable.append((self.domain, self.value))
 
 class DSAST:
 	# Structure(MSB to LSB): Way Limit, Size, Line Limit, Index, Offset, prob useless for python simulations
@@ -177,7 +177,7 @@ class DSAST:
 #################################################################
 
 # open file when doing this mapping, keep track of opened files
-def mapBASTtoDSAST(dsast, gast):
+def mapBASTtoDSAST(dsast, gast=GAST()):
 	global bastTable
 	global sastBast
 	# Check if GAST is mapped to a BAST
@@ -241,7 +241,7 @@ def createFile(dsast):
 	# create a bast associated with the dsast, if there's a mapping already, scrap that
 	global sastBast
 	abast = BAST();
-	sastBast[dsast] = aBast
+	sastBast[dsast] = abast
 	return
 
 def closeFile(dsast):
@@ -309,7 +309,7 @@ def sendMsgRetire():
 def rcvOkToUnmap():
 	# Wait for CH to answer back if its ok from sendMsgRetire
 	returnmsg = -1 # 1 if ok, 0 if not ok
-	while(returnmsg != 0 || returnmsg != 1):
+	while(returnmsg != 0 or returnmsg != 1):
 		pass
 	return returnmsg
 
