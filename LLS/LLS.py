@@ -100,7 +100,7 @@ class BAST:
 	def readFromFile(self, offset):
 		with open("./b/"+str(hex(self.value)), 'r') as file:
 			# check max offset
-			file.seek(0, SEEK_END)
+			file.seek(0, 2) # 2 == SEEK_END
 			max_off = file.tell()
 			if(offset > max_off):
 				raise ValueError
@@ -127,7 +127,7 @@ class BAST:
 		agast = gastTable[self]
 		bastAvail.append(bastTable.pop((agast.domain, agast.key)).value)
 		self.close()
-		fpLst[self.value] = 0
+		fpList[self.value] = 0
 		# remove mapping to DSAST
 		global sastBast
 		bastsast = {v: k for k, v in sastBast.items()}
@@ -230,7 +230,7 @@ def openFile(dsast, gast):
 	# If DSAST is not found in SAST to BAST table and the GAST is null, should we allocate a new BAST? No, this happens in createfile
 	# open and create
 
-	if(not sastBast[dsast]):
+	if dsast not in sastBast:
 		abast = BAST()
 
 	bastsast = {v: k for k, v in sastBast.items()}
@@ -292,7 +292,7 @@ def invalidateDSAST(dsast):
 		gastTable = {v: k for k, v in bastTable.items()}
 	# if there's already a GAST mapping to the BAST
 	# JUST RETURN ACK OR NACK
-		return ACK
+		return "ACK"
 
 # 16k packets for now
 def writeThrough(dsast, packet):
@@ -374,6 +374,7 @@ def rcvOkToUnmap():
 
 
 if __name__ == '__main__':
+	# global sastBast
 	
 	for i in range(0,10):
 		name = "gast"+str(i)
@@ -386,8 +387,8 @@ if __name__ == '__main__':
 	agast = gastlist[0]
 	print(agast)
 	# mapBASTtoDSAST(dsast, agast)
-	sastBast = openFile(dsast, agast)
+	# sastBast = openFile(dsast, agast)
 
-	abast = sastBast[dsast]
-	print(abast.value)
-	abast.writeToFile(dsast, 0)
+	# abast = sastBast[dsast]
+	# print(abast.value)
+	# abast.writeToFile(dsast, 0)
