@@ -9,17 +9,27 @@ from LLS import *
 # FNS LIST TO TEST
 # mapBASTtoDSAST(dsast, gast)
 # gastRequest(dsast)
-# writeToBAST(dsast)
-# openFile(dsast, gast)
+# writeToBAST(dsast)		#
+# openFile(dsast, gast)		#
 # createFile(dsast)
-# closeFile(dsast)
-# saveFile(dsast, permissions)
+# closeFile(dsast)			#
+# saveFile(dsast, permissions)#
 # deleteFile(gast)
 # getBASTfromDSAST(dsast)
-# invalidateDSAST(dsast)
-# writeThrough(dsast, packet)
+# invalidateDSAST(dsast)	#
+# writeThrough(dsast, packet)#
 # sendMsgRetire()							# dummy implementation
 # rcvOkToUnmap()							# dummy implementation
+
+# GAST.duplicate()
+# GAST.free()
+
+# BAST init when there is something in bastAvail list
+# BAST.writeToFile()
+# BAST.readFromFile()
+# BAST.close()
+
+
 
 dsastList = []	# Lists of created DSASTS, mimmic PMU's knowledge of dsasts/gasts
 gastList = []	# Lists of created GASTS
@@ -44,7 +54,6 @@ def testCreateFile():
 	if not (sastBast[adsast] == abast):
 		return "Did not map DSAST to BAST from GAST reference"
 
-	# TODO: open file, write to it
 	fp = abast.open()
 	string = "A"*50
 	fp.write(string)
@@ -64,17 +73,70 @@ def testCreateFile():
 	
 	return 1
 
-def testDeletFile():
+def testDeleteFile():
 	global sastBast
-	abast = getBASTfromDSAST(dsastList[0])
+	if len(dsastList):
+		abast = getBASTfromDSAST(dsastList[0])
+		agast = gastList[0]
+	else:
+		adsast = DSAST()
+		dsastList.append(adsast)
+		agast = GAST()
+		gastList.append(agast)
+		mapBASTtoDSAST(adsast, agast)
+		abast = bastTable[(agast.domain, agast.key)]
+	
+	deleteFile(agast)
+	if (agast.domain, agast.key) in bastTable.keys():
+		print("deleteFile failed to unmap GAST to BAST")
+		return 0
+	
+	# should the physical file referenced by the bast be deleted from the system as well?
+	# it is still innaccessible without an existing bast referencing it, so the next time 
+	# something is written to that file it should just be overwritten, I assume, 
+	# but need to confirm this
 
-	pass
+	return 1
+
+def testReadWriteToFile():
+	global dsastList
+	global gastList
+
+	adsast = DSAST()
+	dsastList.append(adsast)
+	agast = GAST()
+	gastList.append(agast)
+	
+	# link dsast to a bast to be written
+	mapBASTtoDSAST(adsast, agast)
+	adsast.offset = 0
+	writeToBAST(adsast)
+	abast = getBASTfromDSAST(adsast)
+	if not abast.readFromFile(0):
+		print("Nothing read from written bast")
+		return 0
+
+	return 1
+
+def testInvalidate():
+	if len(dsastList):
+		adsast = dsastList.pop()
+		invalidateDSAST(adsast)
+		global sastBast
+		try:
+			if(sastBast[adsast]):
+				print(" Did not unmap DSAST to BAST")
+				return 0	
+		except:
+			return 1
 
 
 def main():
 
 	testFunc(testCreateFile(), "testCreateFile()")
-
+	testFunc(testDeleteFile(), "testDeleteFile()")
+	testFunc(testReadWriteToFile(), "testReadWriteToFile()")
+	testFunc(testInvalidate(), "testInvalidate()")
 
 if __name__ == "__main__":
 	main()

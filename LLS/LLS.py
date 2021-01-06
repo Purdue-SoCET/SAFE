@@ -8,7 +8,7 @@ import typing
 # from Crypto import Random
 # from Crypto.Cipher import AES
 
-gastTable = {} # Hash table, bast to gast mapping, not in use
+gastTable = {} # Hash table, bast to gast mapping, not in use as probably does not exist, there should probably only be a mapping from GAST to BAST, not the inverse
 oitTable = [] # could be a tree indexed by lookup uses, but functionally is just a list 
 oatTable = {} # Hash table, index should be OIT's value
 bastTable = {} # List of bast, key: GAST key and domain, value: BAST
@@ -39,15 +39,15 @@ class GAST:
 		self.key = aOIT.key
 
 		# TODO: add a function to add entry to OIT tree/table
-		if(encrypt):
-			# aOAT = OAT(aOIT)
-			# gastTable[(self.domain, self.key)] = aOAT.value # not sure about this part, dave said to ignore OAT for the moment
-			aBAST = BAST()
-			bastTable[(self.domain, self.key)] = aBAST # BAST is the GAST's value
-			gastTable[aBAST] = self
-		else:
-			aBAST = BAST() # address for tagged data
-			bastTable[(self.domain, self.key)] = aBAST
+		# if(encrypt):
+		# 	# aOAT = OAT(aOIT)
+		# 	# gastTable[(self.domain, self.key)] = aOAT.value # not sure about this part, dave said to ignore OAT for the moment
+		# 	aBAST = BAST()
+		# 	bastTable[(self.domain, self.key)] = aBAST # BAST is the GAST's value
+		# 	gastTable[aBAST] = self
+		# else:
+		aBAST = BAST() # address for tagged data
+		bastTable[(self.domain, self.key)] = aBAST
 		# TODO: also have to add a corresponding BAST/OAT
 		
 	# TODO: external calls can create, duplicate, and free a particular GAST
@@ -78,11 +78,12 @@ class BAST:
 					file.write()
 				self.value = bastCnt
 				bastCnt +=1
-				pass # TODO: What to do when file does not exist??
 		else:
 			oldest = bastAvail.pop(0)
 			if(self.checkFileExists(oldest)):
 				self.value = oldest
+			# clear file
+			self.writeToFile("", 0)
 
 	
 	def checkFileExists(self, count):
@@ -93,8 +94,8 @@ class BAST:
 		with open("./b/"+str(hex(self.value)), 'w') as file:
 			file.seek(offset)
 			file.write(str(value))
-
-	# TODO: make function for partial writes, current one only accepts offset and writes entire packet
+			# NOTE: This gives out an error when the file is smaller than the offset,
+			# It cannot seek to where there is nothing...
 
 	# if offset is larger, raise exception, send back msg to PMU that the process is trying to do funny stuff
 	def readFromFile(self, offset):
@@ -123,17 +124,19 @@ class BAST:
 	def retire(self):
 		# remove mapping from gast to bast
 		global bastTable
-		gastTable = {v: k for k, v in bastTable.items()}
-		agast = gastTable[self]
-		bastAvail.append(bastTable.pop((agast.domain, agast.key)).value)
+		# Leave responsibility of doing the unmapping to the parent function, as there could be key conflict if multiple gasts reference the same bast
+		# gastTable = {v: k for k, v in bastTable.items()}
+		# agast = gastTable[self]
+		bastAvail.append(self.value)
 		self.close()
 		fpList[self.value] = 0
 		# remove mapping to DSAST
 		global sastBast
-		bastsast = {v: k for k, v in sastBast.items()}
-		dsast = bastsast[self]
-		sastBast.pop(dsast)
-		return
+		for sast in sastBast:
+			if sastBast[sast] == self:
+				sastBast.pop(sast)
+				return
+		return "Did not find dsast to bast mapping"
 
 class OIT:
 	def __init__(self, permissions):
@@ -170,18 +173,8 @@ class DSAST:
 		else:
 			self.offset = random.getrandbits(50)
 		
-#################################################################
-# PMU asks for a mapping of GAST to some SAST, use this GAST to make
-# the SAST to BAST translation. Check if this GAST is mapped to a BAST already
-# being in use. Then, we cannot map it to two different SAST. If the 
-# BAST is mapped to a SAST, it returns that SAST, otherwise it returns 
-# the SAST given by PMU with the given mapping
-# dictionary (SAST, BAST)
-# GAST only serves to map BAST to a SAST, GAST is ephemeral
-#################################################################
 
-# open file when doing this mapping, keep track of opened files
-def mapBASTtoDSAST(dsast, gast=GAST()):
+def mapBASTtoDSAST(dsast, gast=None):
 	global bastTable
 	global sastBast
 	# Check if GAST is mapped to a BAST
@@ -190,12 +183,13 @@ def mapBASTtoDSAST(dsast, gast=GAST()):
 	elif(not gast):
 		aBast = BAST()
 	else:
-		return "Failed to find BAST"
+		print("Failed to find BAST")
+		return
 
 	# Check if BAST is mapped to a DSAST
-	for dsast, bast in sastBast.items():
+	for sast, bast in sastBast.items():
 		if(bast == aBast): # already mapped
-			return dsast
+			return sast
 
 	# Did not find a matching DSAST for the BAST
 	sastBast[dsast] = aBast
@@ -208,12 +202,12 @@ def gastRequest(dsast):
 # Write cache line to DSAST's BAST
 def writeToBAST(dsast):
 	global sastBast
-	try:
-		abast = sastBast[dsast]
-		abast.writeToFile(DSAST=dsast, offset=DSAST.offset)
-		return
-	except:
-		print("Could not write to DSAST's BAST\n")
+	# try:
+	abast = sastBast[dsast]
+	abast.writeToFile(value=dsast, offset=dsast.offset)
+	return
+	# except:
+	# 	print("Could not write to DSAST's BAST\n")
 
 def openFile(dsast, gast):
 	global bastTable
@@ -255,7 +249,6 @@ def closeFile(dsast):
 	return
 
 def saveFile(dsast, permissions):
-	# TODO
 	global sastBast
 	global gastTable
 
@@ -267,14 +260,14 @@ def saveFile(dsast, permissions):
 def deleteFile(gast):
 	# retire the gast. if the gast is the only reference to its bast, also get rid of bast
 	global bastTable
-	abast = bastTable.pop(gast)
-	# now need to check if this gast was the last reference to the bast
+	abast = bastTable.pop((gast.domain, gast.key))
 
-	#############################################################################
-	# 	NEW NOTES
-	# If there are no more DSASTS using a BAST, but there be a GAST tied to it, then are we still alowed to retire the BAST?
-	# Does the PMU know which GASTs are tied to which DSASTs
-	#############################################################################
+	for gast, bast in bastTable:
+		if (bast == abast):
+			return
+	# abast not found in the dictionary
+	abast.retire()
+	
 	return
 
 def getBASTfromDSAST(dsast):
@@ -301,8 +294,6 @@ def writeThrough(dsast, packet):
 	# NEW NOTES
 	# For write through, if there's no DSAST associated, should we raise Exception?
 	# always an exception for the entire LLS
-
-	
 	
 	abast = sastBast[dsast]
 	abast.writeToFile(packet, dsast.offset)
@@ -315,13 +306,13 @@ def rcvOkToUnmap():
 	# Wait for CH to answer back if its ok from sendMsgRetire
 	returnmsg = -1 # 1 if ok, 0 if not ok
 	while(returnmsg != 0 or returnmsg != 1):
-		pass
+		# pass
+		break
 	return returnmsg
 
 # TODO: adjust openFile function. if dont find GAST -> BAST mapping, create a new one and map it to a DSAST
 # TODO: finish off invalidateDSAST to include different msgs and then TBs
 
-# open file (and creating file), close file (retire the bast), read, write, invalidate (same as retiring), respond to invalidations
 
 # operations for CH
 # read, write, write through (when L5 writes data to the LLS and line becomes clean in the L5, for the LLS it looks the same as write),
