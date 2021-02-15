@@ -44,22 +44,33 @@ def readfromNAS(NPAST, reader_CAST):
     offset = CAS[CAST].socketTranslationTable[NPAST].headpointer
     return NAStable[NSAST].readbyte()
 
-
+global QUEUE_SIZE
+QUEUE_SIZE = 100
 class MN_Queue:
     def __init__(self):
         self.buffer = []
         self.head_pointer = 0
         self.tail_pointer = 0
-        self.message = 0
-    def insert(data):
-        self.buffer[tail_pointer] = data
+    def insert(message):
+		if (tail_pointer < QUEUE_SIZE):
+        	self.buffer[tail_pointer] = message
+		else:
+			return False
         self.tail_pointer += 1
+		return True
     def remove(data):
         self.head_pointer -= 1
-        return self.buffer[self.head_pointer]
+		if (self.head_pointer >= 0):
+        	return self.buffer[self.head_pointer]
+		else:
+			return False
 
 global MAX_PROCESS_PMU
 MAX_PROCESS_PMU = 5
+#Let process A interact with 5 NPASTs
+#5 NPASTs map to 3 NSASTS
+#this mapping is stored in a table
+#Process A(CAST) is assoc with 5 NPAST is assoc with 3 NSASTs
 class SNE:
     def __init__(self,num_socket):
         self.MN_queue = MN_Queue()                                   #Single MN Queue of SNE
@@ -78,13 +89,8 @@ class SNE:
             self.thread_list[i].join()
 
 def lookup_CAS(NPAST):
-    CAS[NPAST]
+    return CAS[NPAST]
 
-class Socket:
-    buff = []
-    def __init__(self):
-        self.buff
-        self.headpointer = 0
 
 
 class NSR:
@@ -115,5 +121,4 @@ class MNMessage():
     def __init__(self,sourceCAST,metadata,data)
 class MNSR:
     def __init__(self,sourceCAST,targetCAST,metadata,data):
-
 
