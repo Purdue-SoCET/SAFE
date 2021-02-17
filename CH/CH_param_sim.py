@@ -6,6 +6,7 @@ class cache:
         self.level = level
         self.ways = 4
         self.line_size = 6 + self.level + self.level
+        self.block_size = (1 << self.line_size) >> 5
 
         if(self.level == 0):
             self.direct_size = 8 
@@ -24,11 +25,16 @@ class cache:
         self.up = level - 1 
         self.down = level + 1       
         self.cache_mask = (1 << self.direct_size) - 1
+        self.block_mask = (1 << self.direct_size) - 1
+        
         
         self.line_tag = [[0 for y in range(self.ways)] for x in range(1 << self.direct_size)] #[0] * (1 << self.cache_size)
         self.tag_offset = self.direct_size + self.line_size
         
-        self.line_data = [[0 for y in range(self.ways)] for x in range(1 << self.direct_size)] #[0] * (1 << self.cache_size)
+        #Data segment of cache block TODO:Need change so that I can access word on each offset (set the block as word)
+        self.line_data = [[0 for z in range(self.block_size)] for y in range(self.ways)] for x in range(1 << self.direct_size)] #[0] * (1 << self.cache_size)
+
+        #Dirty Bit segment of cache block
         self.line_state = [[0 for y in range(self.ways)] for x in range(1 << self.direct_size)] #[0] * (1 << self.cache_size)
         
 
