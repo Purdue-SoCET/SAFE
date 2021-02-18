@@ -64,6 +64,26 @@ class MN_Queue:
         	return self.buffer[self.head_pointer]
 		else:
 			return False
+#MN Notification format where tx means sender else receiver
+# the sender's CAST is present in the MN packet
+# the payload is attached
+class MN_Notification:
+    def __init__(self, tx = True, time, senderCAST, payload):
+        self.tx = tx
+        self.time = time
+        self.senderCAST = senderCAST
+        self.payload = payload
+        self.buffer = None
+        if tx is False:
+            self.dissect()			
+    def packetize(self):
+        self.buffer = (self.time, self.senderCAST, self.payload)
+        return self.buffer
+    def dissect(self):
+        self.time = self.buffer[2]
+        self.senderCAST = self.buffer[1]
+        self.payload = self.buffer[0]
+	
 
 global MAX_PROCESS_PMU
 MAX_PROCESS_PMU = 5
@@ -71,13 +91,16 @@ MAX_PROCESS_PMU = 5
 #5 NPASTs map to 3 NSASTS
 #this mapping is stored in a table
 #Process A(CAST) is assoc with 5 NPAST is assoc with 3 NSASTs
+#maybe an interaction with MN queue, when data is received and MN queue has a read 
+#PMU would add to MN queue until the queue is fulled. 
+#no need handshake, fixed buffer of lets say 6 bytes, sync byte to say its done
 class SNE:
     def __init__(self,num_socket):
         self.MN_queue = MN_Queue()                                   #Single MN Queue of SNE
         self.NAS = [[None] * 1024] * MAX_SOCKETS_SYSTEM              #NAS buffer (socket)
         self.socket_table = [[[[None] * MAX_SOCKETS_SYSTEM] * MAX_SOCKETS_PROCESS] * MAX_PROCESS_PMU]   #[NSAST, NPAST, CAST]
         self.thread_list = []                               #active threads of each socket
-        self.run(num_socket)
+        self.run(MAX_SOCKETS_SYSTEM)
     def thread_function(self,socket_index, data):
         while True:        
             self.NAS[socket_index].append(data)
