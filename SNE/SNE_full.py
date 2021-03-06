@@ -81,9 +81,17 @@ class MN_Notification:
         return self.buffer
     def dissect(self):
         self.time = self.buffer[2]
-        self.senderCAST = self.buffer[1]
+        self.senderCAST = self.buffer[1] #Process CAST (A)
         self.payload = self.buffer[0]
 	
+def L3_Direct_Mapped_Cache(input_addr):
+    hit = 0
+    data = 0
+    direct_mapped_cache = [[0,0,0]*10]
+    if (direct_mapped[input_addr[15:5]][1] == input_addr[20:15] and direct_mapped[input_addr[15:5]][2]):
+        hit = 1
+        data = direct_mapped[input_addr[15:5]][0]
+    return hit, data
 
 global MAX_PROCESS_PMU
 MAX_PROCESS_PMU = 5
@@ -94,6 +102,8 @@ MAX_PROCESS_PMU = 5
 #maybe an interaction with MN queue, when data is received and MN queue has a read 
 #PMU would add to MN queue until the queue is fulled. 
 #no need handshake, fixed buffer of lets say 6 bytes, sync byte to say its done
+#find out more about NAT table https://www.youtube.com/watch?v=6Fl1rsxk4JQ
+#should I modulo 3 the NPAST
 class SNE:
     def __init__(self,num_socket):
         self.MN_queue = MN_Queue()                                   #Single MN Queue of SNE
@@ -110,10 +120,14 @@ class SNE:
             self.thread_list[i].start()
         for i in range(num_threads):
             self.thread_list[i].join()
+#setup and tear down of NPAS sockets
+#does PN interact with PMU for setup and teardown requests?
+	def NPASTtoNSAST(self, CAST):
+        self.socket_table[CAST]       
 
-def lookup_CAS(NPAST):
+
+def lookup_CAS(CAS, NPAST):
     return CAS[NPAST]
-
 
 
 class NSR:
