@@ -3,7 +3,6 @@ import random
 import sys
 import os
 import typing
-from dsast import DSAST
 # import base64
 # import hashlib
 # from Crypto import Random
@@ -92,10 +91,13 @@ class BAST:
 	# if offset is larger, create space for the write
 	def writeToFile(self, value, offset):
 		with open("./b/"+str(hex(self.value)), 'w') as file:
-			file.seek(offset)
+			# if we get an offset larger than file size, pad file to fit content
+			fsize = file.seek(0, 2) - file.seek(0, 0)
+			if(fsize > offset):
+				file.seek(0, 2)
+				file.write(0 for i in range(0, offset - fsize))
+			file.seek(offset, 0)
 			file.write(str(value))
-			# NOTE: This gives out an error when the file is smaller than the offset,
-			# It cannot seek to where there is nothing...
 
 	# if offset is larger, raise exception, send back msg to PMU that the process is trying to do funny stuff
 	def readFromFile(self, offset):
@@ -151,16 +153,42 @@ class OIT:
 		# need to check if key does not exist in domain before addying entry to hash table
 		# not sure if this is what goes into the oitTable...
 		if (self.domain, self.value) not in oitTable:
-			oitTable.append((self.domain, self.value))		
+			oitTable.append((self.domain, self.value))
+
+class DSAST:
+	# Structure(MSB to LSB): Way Limit, Size, Line Limit, Index, Offset, prob useless for python simulations
+	def __init__(self, index=0, address=0, lineLimit=0, size=0, wayLimit=0):
+		# Size: 0 = Large DSAST, 1 = Small DSAST
+		# Offset: 40 bits for small, 50 bit for large
+		# Index: (mb kinda the file name) indexing in a list of DSASTs
+		# only cache fields
+		# Line limit: The least significant set-bit of the this field determines the partition size and the remaining 
+		# upper bits of the field determine to which of the possible ranges, of the indicated size, the DSAST is restricted.
+		# Way Limit: cache restrictions. 0=RESERVED, 1=no restriction, 2=only 1st half of the cache, 3=only second half of the cache
+
+		self.size = size
+		if(index != 0):
+			self.index = index
+		elif(size==0): # large dsast
+			self.index = random.getrandbits(15)
+		elif(size==1): # small dsast
+			self.index = random.getrandbits(24)
+		self.linelimit = lineLimit
+		self.waylimit = wayLimit
+		self.offset = address
+		# if(size): # small DSAST
+		# 	self.offset = random.getrandbits(40)
+		# else:
+		# 	self.offset = random.getrandbits(50)
 
 def mapBASTtoDSAST(dsast, gast=None):
 	global bastTable
 	global sastBast
 	# Check if GAST is mapped to a BAST
-	if ((gast.domain, gast.key) in bastTable.keys()):
-		aBast = bastTable[(gast.domain, gast.key)]
-	elif(not gast):
+	if(not gast):
 		aBast = BAST()
+	elif ((gast.domain, gast.key) in bastTable.keys()):
+		aBast = bastTable[(gast.domain, gast.key)]
 	else:
 		print("Failed to find BAST")
 		return
@@ -178,16 +206,6 @@ def gastRequest(dsast):
 	# randomly pick a gast, map it to the dsast's bast
 	pass
 
-# Write cache line to DSAST's BAST
-def writeToBAST(dsast):
-	global sastBast
-	# try:
-	abast = sastBast[dsast]
-	abast.writeToFile(value=dsast, offset=dsast.offset)
-	return
-	# except:
-	# 	print("Could not write to DSAST's BAST\n")
-
 def openFile(dsast, gast):
 	global bastTable
 	global sastBast
@@ -197,7 +215,7 @@ def openFile(dsast, gast):
 	else:
 		agast = GAST()
 		abast = bastTable[gast]
-# need to address: when gast has an existing mapping, return DSAST mapped
+	# need to address: when gast has an existing mapping, return DSAST mapped
 	#########################################################
 	# 	NEW NOTE
 	# If DSAST is not found in SAST to BAST table and the GAST is null, should we allocate a new BAST? No, this happens in createfile
@@ -249,6 +267,16 @@ def deleteFile(gast):
 	
 	return
 
+# Write cache line to DSAST's BAST
+def writeToBAST(dsast):
+	global sastBast
+	# try:
+	abast = sastBast[dsast]
+	abast.writeToFile(value=dsast, offset=dsast.offset)
+	return
+	# except:
+	# 	print("Could not write to DSAST's BAST\n")
+
 def getBASTfromDSAST(dsast):
 	global sastBast
 	return sastBast[dsast]
@@ -266,18 +294,6 @@ def invalidateDSAST(dsast):
 	# JUST RETURN ACK OR NACK
 		return "ACK"
 
-# 16k packets for now
-def writeThrough(dsast, packet):
-	global sastBast
-	#############################################################################
-	# NEW NOTES
-	# For write through, if there's no DSAST associated, should we raise Exception?
-	# always an exception for the entire LLS
-	
-	abast = sastBast[dsast]
-	abast.writeToFile(packet, dsast.offset)
-	return
-
 def sendMsgRetire():
 	return "Retire cache line x"
 
@@ -289,6 +305,29 @@ def rcvOkToUnmap():
 		break
 	return returnmsg
 
+def mapAddrToDSAST(addr):
+	global sastBast
+	for dsast, bast in sastBast.items():
+		if(dsast.offset == addr):
+			return dsast
+	return False
+
+def readLLS(addr):
+	global sastBast
+	# check if dsast exists
+	for dsast, bast in sastBast.items():
+		if(dsast.offset == addr):
+			return sastBast[dsast].readFromFile(dsast.offset)
+	return False
+	
+def writeLLS(addr, writeData):
+	global sastBast
+	dsast = mapAddrToDSAST()
+	if(dsast == False): # could not find corresponding dsast with addr
+		dsast = mapBASTtoDSAST(dsast)
+		dsast.offset = addr
+	return sastBast[dsast].writeToFile(writeData, dsast.offset)
+	
 # TODO: adjust openFile function. if dont find GAST -> BAST mapping, create a new one and map it to a DSAST
 # TODO: finish off invalidateDSAST to include different msgs and then TBs
 

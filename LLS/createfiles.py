@@ -14,7 +14,8 @@ def createFiles(n):
 			os.mkdir("./b")
 	# create files
 	for i in range(0, n):
-			with open('b/'+str(hex(i)), 'w'): pass
+			with open('b/'+str(hex(i)), 'w') as file: 
+				file.close()
 
 
 def main():

@@ -37,7 +37,8 @@ class GAST:
 		aBAST = BAST() # address for tagged data
 		bastTable[(self.domain, self.key)] = aBAST
 
-class pack:
+# Packet struct. Refer to John's Notes for component id and extra details on connections
+class Pack:
 	def __init__(self, origin, destination, content):
 		self.origin = origin
 		self.destination = destination
@@ -46,21 +47,35 @@ class pack:
 def open_listenfd(port, host=''):
 	# port: port to bind to, need to specify a port
 	# host: host to bind to, default is any host
-	
-	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		
+	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # TCP
 	s.bind((host, port))
 	s.listen(5)
 	return s
 
-def start_conns(components=[]):
+def on_new_client(clientsocket,addr):
+    while True:
+        msg = clientsocket.recv(1024)
+        #do some checks and if msg == someWeirdSignal: break:
+        print addr, ' >> ', msg
+        #msg = raw_input('SERVER >> ')
+        #Maybe some code to compute the last digit of PI, play game or anything else can go here and when you are done.
+        #clientsocket.send(msg)
+    clientsocket.close()
+
+def start_listen_conns(components=[]):
 	# components: list of tuples containing port and host values for each component to connect
 	#			  components = [(port, host)]
-    # open connection for each component
+    # open socket for each component and listen to all ports
     socks = []
 	for component in components:
-		socks.append(open_listenfd(host=component[0], post=component[1]))
+		socks.append(open_listenfd(port=component[0], host=component[1]))
 
 	while True:
-		(rdy_socks, [], []) = select.select(socks, None, None)
-		if(len(rdy_socks)):
-			
+		rdy_socks,_,_ = select.select(socks, None, None)
+		for sock in rdy_socks:
+			(conn, address) = sock.accept()
+			thread.start_new_thread(on_new_client,(c,addr))
+
+	for sock in socks:
+		sock.close()
