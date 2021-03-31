@@ -83,6 +83,7 @@ class cache:
             else:
                 for i in range(0, self.block_size):
                     block_addr = addr & ~(self.block_mask << 2) ^ (i << 2)  # need testing
+                    global_dsast = DSAST(block_addr)
                     line_data[x][way_to_replace][i] = writeLLS(global_dsast, line_data[x][way_to_replace][i])
                     #               caches[self.down].put(line_tag[x][way_to_replace],line_data[x][way_to_replace][block_index])
                     #
@@ -92,7 +93,7 @@ class cache:
     #    print("Replace function index", x)
     #    print("Replace function way to replace ", way_to_replace)
     #    print("Replace function down ", self.down)
-        if(self.level != 3):
+        if(self.level != 4):
             self.line_tag[x][way_to_replace] = addr >> self.tag_offset
     #        print("Replacing tag ", self.line_tag[x][way_to_replace])
             for i in range(0, self.block_size):
@@ -106,6 +107,7 @@ class cache:
             #61-20
             for i in range(0, self.block_size):
                 block_addr = addr & ~(self.block_mask << 2) ^ (i << 2)  # need testing
+                global_dsast = DSAST(block_addr)
                 self.line_data[x][way_to_replace][i] = readLLS(global_dsast)
                 #self.line_data[x][way_to_replace][i] = 0x5555
             self.line_state[x][way_to_replace] = 0
@@ -144,30 +146,30 @@ class cache:
         print(" L2 Hit Rate = ", hits[1] /(hits[1] + miss[1]))
         print(" L3 Hit Rate = ", hits[2] /(hits[2] + miss[2]))
         print(" L4 Hit Rate = ", hits[3] /(hits[3] + miss[3]))
-        if(hits[4]>0):
+        if(hits[4] > 0):
             print(" L5 Hit Rate = ", hits[4] /(hits[4] + miss[4]))
         else:
             print(" L5 Hit Rate = 0")
 
-class LLScache:
+# class LLScache:
     
-    def __init__(self, cache_size, block_size):
-       #L2cache.i += 1
-       self.LLShits = 0
-       self.LLSmiss = 0
-    # def make_dsast(self, addr):
-    #     return(DSAST(size=0, index=addr, linelimit=0, waylimit=1))
+#     def __init__(self, cache_size, block_size):
+#        #L2cache.i += 1
+#        self.LLShits = 0
+#        self.LLSmiss = 0
+#     # def make_dsast(self, addr):
+#     #     return(DSAST(size=0, index=addr, linelimit=0, waylimit=1))
 
-    def get(self, addr):
-        self.LLShits += 1
-        return readLLS(addr)
-        # adsast = DSAST()
+#     def get(self, addr):
+#         self.LLShits += 1
+#         return readLLS(addr)
+#         # adsast = DSAST()
 
-    def put(self,addr,data):
-        return writeLLS(addr, data)
+#     def put(self,addr,data):
+#         return writeLLS(addr, data)
 
-    def hit_count(self):
-        print(" LLS Hits = ", self.LLShits)
+#     def hit_count(self):
+#         print(" LLS Hits = ", self.LLShits)
 
 
 caches = []

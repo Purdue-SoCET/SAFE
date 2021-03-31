@@ -157,7 +157,7 @@ class OIT:
 
 class DSAST:
 	# Structure(MSB to LSB): Way Limit, Size, Line Limit, Index, Offset, prob useless for python simulations
-	def __init__(self, index=0, address=0, lineLimit=0, size=0, wayLimit=0):
+	def __init__(self, address=None, index=0, lineLimit=0, size=0, wayLimit=0, offset=0):
 		# Size: 0 = Large DSAST, 1 = Small DSAST
 		# Offset: 40 bits for small, 50 bit for large
 		# Index: (mb kinda the file name) indexing in a list of DSASTs
@@ -165,21 +165,40 @@ class DSAST:
 		# Line limit: The least significant set-bit of the this field determines the partition size and the remaining 
 		# upper bits of the field determine to which of the possible ranges, of the indicated size, the DSAST is restricted.
 		# Way Limit: cache restrictions. 0=RESERVED, 1=no restriction, 2=only 1st half of the cache, 3=only second half of the cache
-
-		self.size = size
-		if(index != 0):
-			self.index = index
-		elif(size==0): # large dsast
-			self.index = random.getrandbits(15)
-		elif(size==1): # small dsast
-			self.index = random.getrandbits(24)
-		self.linelimit = lineLimit
-		self.waylimit = wayLimit
-		self.offset = address
-		# if(size): # small DSAST
-		# 	self.offset = random.getrandbits(40)
-		# else:
-		# 	self.offset = random.getrandbits(50)
+		if(address):
+			self.size = size
+			if(index != 0):
+				self.index = index
+			elif(size==0): # large dsast
+				self.index = random.getrandbits(15)
+			elif(size==1): # small dsast
+				self.index = random.getrandbits(24)
+			self.linelimit = lineLimit
+			self.waylimit = wayLimit
+			if(offset != 0):
+				self.offset = offset
+			else:
+				if(size): # small DSAST
+					self.offset = random.getrandbits(40)
+				else:
+					self.offset = random.getrandbits(50)
+		else:  # address passed from CH
+			self.size = (address >> 69) & 0x1
+			self.waylimit = (address >> 70) & 0x2
+			if(self.size): # small DSAST
+				self.linelimit = (address >> 64) & 0x1f
+				self.index =  (address >> 39) & 0xfffff
+				if(offset != 0):
+					self.offset = offset
+				else:
+					self.offset = random.getrandbits(40)
+			else:
+				self.linelimit = (address >> 65) & 0xf
+				self.index =  (address >> 50) & 0x7fff
+				if(offset != 0):
+					self.offset = offset
+				else:
+					self.offset = random.getrandbits(50)
 
 def mapBASTtoDSAST(dsast, gast=None):
 	global bastTable
@@ -263,8 +282,7 @@ def deleteFile(gast):
 		if (bast == abast):
 			return
 	# abast not found in the dictionary
-	abast.retire()
-	
+	abast.retire()	
 	return
 
 # Write cache line to DSAST's BAST
@@ -294,6 +312,7 @@ def invalidateDSAST(dsast):
 	# JUST RETURN ACK OR NACK
 		return "ACK"
 
+# TODO: finish off invalidateDSAST to include different msgs and then TBs
 def sendMsgRetire():
 	return "Retire cache line x"
 
@@ -312,24 +331,34 @@ def mapAddrToDSAST(addr):
 			return dsast
 	return False
 
-def readLLS(addr):
+# CH functions that accept a ready DSAST
+def readLLS(dsast):
 	global sastBast
 	# check if dsast exists
-	for dsast, bast in sastBast.items():
-		if(dsast.offset == addr):
-			return sastBast[dsast].readFromFile(dsast.offset)
-	return False
+	return sastBast[dsast].readFromFile(dsast.offset)
 	
-def writeLLS(addr, writeData):
+def writeLLS(dsast, writeData):
 	global sastBast
-	dsast = mapAddrToDSAST()
-	if(dsast == False): # could not find corresponding dsast with addr
-		dsast = mapBASTtoDSAST(dsast)
-		dsast.offset = addr
-	return sastBast[dsast].writeToFile(writeData, dsast.offset)
+	adsast = mapBASTtoDSAST(dsast)()
+	return sastBast[adsast].writeToFile(writeData, dsast.offset)
+
+# CH functions that accept a non-DSAST address
+# def readLLS(addr):
+# 	global sastBast
+# 	# check if dsast exists
+# 	for dsast, bast in sastBast.items():
+# 		if(dsast.offset == addr):
+# 			return sastBast[dsast].readFromFile(dsast.offset)
+# 	return False
 	
-# TODO: adjust openFile function. if dont find GAST -> BAST mapping, create a new one and map it to a DSAST
-# TODO: finish off invalidateDSAST to include different msgs and then TBs
+# def writeLLS(addr, writeData):
+# 	global sastBast
+# 	dsast = mapAddrToDSAST()
+# 	if(dsast == False): # could not find corresponding dsast with addr
+# 		dsast = mapBASTtoDSAST(dsast)
+# 		dsast.offset = addr
+# 	return sastBast[dsast].writeToFile(writeData, dsast.offset)
+	
 
 
 # operations for CH
