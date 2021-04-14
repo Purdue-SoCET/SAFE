@@ -83,7 +83,10 @@ class cache:
             else:
                 for i in range(0, self.block_size):
                     block_addr = addr & ~(self.block_mask << 2) ^ (i << 2)  # need testing
-                    global_dsast = DSAST(block_addr)
+                    # NOTE: for now, consider bits 31:0 as the offset of the DSAST until we extend the 
+                    #       cache address to 72 bits. 63:32 is the DSAST
+                    # adsast_offset = block_addr & 0x0000FFFF
+                    global_dsast = DSAST(address=block_addr, wayLimit=way_to_replace, lineLimit=self.line_size, size=1)
                     line_data[x][way_to_replace][i] = writeLLS(global_dsast, line_data[x][way_to_replace][i])
                     #               caches[self.down].put(line_tag[x][way_to_replace],line_data[x][way_to_replace][block_index])
                     #
@@ -93,6 +96,7 @@ class cache:
     #    print("Replace function index", x)
     #    print("Replace function way to replace ", way_to_replace)
     #    print("Replace function down ", self.down)
+
         if(self.level != 4):
             self.line_tag[x][way_to_replace] = addr >> self.tag_offset
     #        print("Replacing tag ", self.line_tag[x][way_to_replace])
@@ -107,7 +111,8 @@ class cache:
             #61-20
             for i in range(0, self.block_size):
                 block_addr = addr & ~(self.block_mask << 2) ^ (i << 2)  # need testing
-                global_dsast = DSAST(block_addr)
+                adsast_offset = block_addr & 0x0000FFFF
+                global_dsast = DSAST(address=block_addr, wayLimit=way_to_replace, lineLimit=self.line_size, size=1)
                 self.line_data[x][way_to_replace][i] = readLLS(global_dsast)
                 #self.line_data[x][way_to_replace][i] = 0x5555
             self.line_state[x][way_to_replace] = 0
