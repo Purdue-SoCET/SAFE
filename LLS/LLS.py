@@ -8,7 +8,8 @@ import typing
 # from Crypto import Random
 # from Crypto.Cipher import AES
 
-gastTable = {} # Hash table, bast to gast mapping, not in use as probably does not exist, there should probably only be a mapping from GAST to BAST, not the inverse
+gastTable = {} # Hash table, bast to gast mapping, not in use as probably does not exist, there should probably only be 
+			   # a mapping from GAST to BAST, not the inverse
 oitTable = [] # could be a tree indexed by lookup uses, but functionally is just a list 
 oatTable = {} # Hash table, index should be OIT's value
 bastTable = {} # List of bast, key: GAST key and domain, value: BAST
@@ -17,12 +18,6 @@ bastCnt = 0 # counter for next bast file if bastavail is empty
 sastBast = {} # maps DSAST to a BAST
 fpList = {} # Lists file pointers from BASTS, where the index is the BAST value
 
-################################################################################
-# TWO WAY DICTIONARY
-# https://stackoverflow.com/questions/1456373/two-way-reverse-map
-# https://stackoverflow.com/questions/3318625/how-to-implement-an-efficient-bidirectional-hash-table?rq=1
-# https://stackoverflow.com/questions/7657457/finding-key-from-value-in-python-dictionary
-################################################################################
 
 class GAST:
 	global bastTable
@@ -37,20 +32,18 @@ class GAST:
 		self.permissions = aOIT.permissions
 		self.domain = aOIT.domain
 		self.key = aOIT.key
-
-		# TODO: add a function to add entry to OIT tree/table
-		# if(encrypt):
-		# 	# aOAT = OAT(aOIT)
-		# 	# gastTable[(self.domain, self.key)] = aOAT.value # not sure about this part, dave said to ignore OAT for the moment
-		# 	aBAST = BAST()
-		# 	bastTable[(self.domain, self.key)] = aBAST # BAST is the GAST's value
-		# 	gastTable[aBAST] = self
-		# else:
 		aBAST = BAST() # address for tagged data
 		bastTable[(self.domain, self.key)] = aBAST
+
+		# if(encrypt):
+		# 	aOAT = OAT(aOIT)
+		# 	gastTable[(self.domain, self.key)] = aOAT.value # not sure about this part, dave said to ignore OAT for the moment
+		# else:
+		# aBAST = BAST() # address for tagged data
+		# bastTable[(self.domain, self.key)] = aBAST
 		# TODO: also have to add a corresponding BAST/OAT
-		
-	# TODO: external calls can create, duplicate, and free a particular GAST
+
+
 	def duplicate(self):
 		newGAST = GAST(permissions=self.permissions)
 		bastTable[(newGAST.domain, newGAST.key)] = bastTable[(self.domain, self.key)]
@@ -60,7 +53,6 @@ class GAST:
 	def free(self):
 		del bastTable[(self.domain, self.key)]
 
-# what does the LLS do if the offset provided in the DSR is larger than the file size referenced by the BAST
 
 class BAST:
 	def __init__(self):
@@ -92,10 +84,13 @@ class BAST:
 	# if offset is larger, create space for the write
 	def writeToFile(self, value, offset):
 		with open("./b/"+str(hex(self.value)), 'w') as file:
-			file.seek(offset)
+			# if we get an offset larger than file size, pad file to fit content
+			fsize = file.seek(0, 2) - file.seek(0, 0)
+			if(fsize > offset):
+				file.seek(0, 2)
+				file.write(0 for i in range(0, offset - fsize))
+			file.seek(offset, 0)
 			file.write(str(value))
-			# NOTE: This gives out an error when the file is smaller than the offset,
-			# It cannot seek to where there is nothing...
 
 	# if offset is larger, raise exception, send back msg to PMU that the process is trying to do funny stuff
 	def readFromFile(self, offset):
@@ -124,7 +119,8 @@ class BAST:
 	def retire(self):
 		# remove mapping from gast to bast
 		global bastTable
-		# Leave responsibility of doing the unmapping to the parent function, as there could be key conflict if multiple gasts reference the same bast
+		# Leave responsibility of doing the unmapping to the parent function, as there could be key conflict if multiple
+		# gasts reference the same bast
 		# gastTable = {v: k for k, v in bastTable.items()}
 		# agast = gastTable[self]
 		bastAvail.append(self.value)
@@ -133,8 +129,8 @@ class BAST:
 		# remove mapping to DSAST
 		global sastBast
 		for sast in sastBast:
-			if sastBast[sast] == self:
-				sastBast.pop(sast)
+			if sastBast[sast.dsast] == self:
+				sastBast.pop(sast.dsast)
 				return
 		return "Did not find dsast to bast mapping"
 
@@ -154,8 +150,11 @@ class OIT:
 			oitTable.append((self.domain, self.value))
 
 class DSAST:
-	# Structure(MSB to LSB): Way Limit, Size, Line Limit, Index, Offset, prob useless for python simulations
-	def __init__(self, index=0, lineLimit=0, size=0, wayLimit=0):
+	# NOTE: this DSAST struct represents the entire DSR as described in page 29 of the manual_1y, 
+	# 		thus self.offset and self.dsast compose the entire DSR struc and each DSAST field can
+	#		be accessed individually as well
+	# Structure(MSB to LSB): Way Limit, Size, Line Limit, Index. Part of DSR: Offset, prob useless for python simulations
+	def __init__(self, address=None, index=0, lineLimit=0, size=1, wayLimit=0, offset=0):
 		# Size: 0 = Large DSAST, 1 = Small DSAST
 		# Offset: 40 bits for small, 50 bit for large
 		# Index: (mb kinda the file name) indexing in a list of DSASTs
@@ -163,25 +162,56 @@ class DSAST:
 		# Line limit: The least significant set-bit of the this field determines the partition size and the remaining 
 		# upper bits of the field determine to which of the possible ranges, of the indicated size, the DSAST is restricted.
 		# Way Limit: cache restrictions. 0=RESERVED, 1=no restriction, 2=only 1st half of the cache, 3=only second half of the cache
+		if(address==None):  # make new dsast
+			self.size = size
+			if(index != 0):
+				self.index = index
+			elif(size==0): # large dsast
+				self.index = random.getrandbits(15)
+			elif(size==1): # small dsast
+				self.index = random.getrandbits(24)
+			self.linelimit = lineLimit
+			self.waylimit = wayLimit
+			if(offset != 0):
+				self.offset = offset
+			else:
+				if(size): # small DSAST
+					self.offset = random.getrandbits(40)
+				else:
+					self.offset = random.getrandbits(50)
+		else:  # address passed from CH
+			self.size = size
+			self.waylimit = waylimit
+			self.linelimit = linelimit
+			if(self.size): # small DSAST				
+				self.index = (address >> 39) & 0xffffff # 24 bits
+				self.offset = address & 0xffffffffff # 40 bits
+				self.dsast = self.index | (self.lineLimit << 24) | (self.size << 29) | (self.waylimit << 30)
+			else:
+				self.index = (address >> 49) & 0x3fff # 14 bits
+				self.offset = address & 0x3ffffffffffff # 50 bits
+				self.dsast = self.index | (self.lineLimit << 14) | (self.size << 19) | (self.waylimit << 20)
 
-		self.size = size
-		self.index = index
-		self.linelimit = lineLimit
-		self.waylimit = wayLimit
-		if(size): # small DSAST
-			self.offset = random.getrandbits(40)
-		else:
-			self.offset = random.getrandbits(50)
-		
+# local function to get BAST value from DSAST key in dict
+# parameters: 	dsast(DSAST()): DSAST to be unmapped
+# returns:		BAST(): corresponding bast to dsast
+def getBASTfromDSAST(dsast):
+	global sastBast
+	return sastBast[dsast.dsast]
 
+# PMU function to map dsast to a bast
+# parameters: 	dsast(DSAST()): DSAST to be mapped
+#				gast(GAST()): optional parameter to get bast directly from GAST
+# returns:		DSAST(): corresponding DSAST mapped to a BAST, if gast parameter is passed and if a matching (bast,gast)
+#				pair is found, return the dsast mapped to that bast
 def mapBASTtoDSAST(dsast, gast=None):
 	global bastTable
 	global sastBast
 	# Check if GAST is mapped to a BAST
-	if ((gast.domain, gast.key) in bastTable.keys()):
-		aBast = bastTable[(gast.domain, gast.key)]
-	elif(not gast):
+	if(not gast):
 		aBast = BAST()
+	elif ((gast.domain, gast.key) in bastTable.keys()):
+		aBast = bastTable[(gast.domain, gast.key)]
 	else:
 		print("Failed to find BAST")
 		return
@@ -192,23 +222,15 @@ def mapBASTtoDSAST(dsast, gast=None):
 			return sast
 
 	# Did not find a matching DSAST for the BAST
-	sastBast[dsast] = aBast
+	sastBast[dsast.dsast] = aBast
 	return dsast
 
+# PMU function that requests a gast, WIP
 def gastRequest(dsast):
 	# randomly pick a gast, map it to the dsast's bast
 	pass
 
-# Write cache line to DSAST's BAST
-def writeToBAST(dsast):
-	global sastBast
-	# try:
-	abast = sastBast[dsast]
-	abast.writeToFile(value=dsast, offset=dsast.offset)
-	return
-	# except:
-	# 	print("Could not write to DSAST's BAST\n")
-
+# FILE OPERATION FUNCTIONS
 def openFile(dsast, gast):
 	global bastTable
 	global sastBast
@@ -218,34 +240,27 @@ def openFile(dsast, gast):
 	else:
 		agast = GAST()
 		abast = bastTable[gast]
-# need to address: when gast has an existing mapping, return DSAST mapped
-	#########################################################
-	# 	NEW NOTE
-	# If DSAST is not found in SAST to BAST table and the GAST is null, should we allocate a new BAST? No, this happens in createfile
-	# open and create
 
 	if dsast not in sastBast:
 		abast = BAST()
 
 	bastsast = {v: k for k, v in sastBast.items()}
 	bastsast[abast] = dsast
-	sastBast[dsast] = abast
+	sastBast[dsast.dsast] = abast
 	return dsast
-	# sastbast = {v: k for k, v in bastsast.items()}
-	# return sastbast
 	# what happens if no bast is mapped to the provided gast
 
 def createFile(dsast):
 	# create a bast associated with the dsast, if there's a mapping already, scrap that
 	global sastBast
 	abast = BAST();
-	sastBast[dsast] = abast
+	sastBast[dsast.dsast] = abast
 	return
 
 def closeFile(dsast):
 	# just unmap dsast from its bast
 	global sastBast
-	sastBast.pop(dsast)
+	sastBast.pop(dsast.dsast)
 	return
 
 def saveFile(dsast, permissions):
@@ -253,7 +268,7 @@ def saveFile(dsast, permissions):
 	global gastTable
 
 	agast = GAST(permissions=permissions)
-	abast = sastBast[dsast]
+	abast = sastBast[dsast.dsast]
 	bastTable[agast] = abast
 	return agast
 
@@ -266,14 +281,13 @@ def deleteFile(gast):
 		if (bast == abast):
 			return
 	# abast not found in the dictionary
-	abast.retire()
-	
+	abast.retire()	
 	return
 
-def getBASTfromDSAST(dsast):
-	global sastBast
-	return sastBast[dsast]
-
+# PMU function to invalidate/retire corresponding DSAST. Sends retire call to CH and after CH completes retiring, delete
+# dsast entry in the global dict
+# parameters: 	dsast(DSAST()): DSAST to be unmapped
+# returns:		ACK or NACKs
 def invalidateDSAST(dsast):
 	global sastBast
 	global bastTable
@@ -281,27 +295,18 @@ def invalidateDSAST(dsast):
 	# Need to make sure the cache sends back msg that it has written back everything it need to associated with the DSAST
 	sendMsgRetire()
 	if(rcvOkToUnmap()):
-		abast = sastBast.pop(dsast)
+		abast = sastBast.pop(dsast.dsast)
 		gastTable = {v: k for k, v in bastTable.items()}
 	# if there's already a GAST mapping to the BAST
 	# JUST RETURN ACK OR NACK
 		return "ACK"
 
-# 16k packets for now
-def writeThrough(dsast, packet):
-	global sastBast
-	#############################################################################
-	# NEW NOTES
-	# For write through, if there's no DSAST associated, should we raise Exception?
-	# always an exception for the entire LLS
-	
-	abast = sastBast[dsast]
-	abast.writeToFile(packet, dsast.offset)
-	return
-
+# TODO: finish off invalidateDSAST to include different msgs and then TBs
+# dummy function that tells CH to retire cache line, expects to call rcvOkToUnmap() afterwards
 def sendMsgRetire():
 	return "Retire cache line x"
 
+# dummy function that waits for CH to respond back and acknowledgement
 def rcvOkToUnmap():
 	# Wait for CH to answer back if its ok from sendMsgRetire
 	returnmsg = -1 # 1 if ok, 0 if not ok
@@ -310,8 +315,51 @@ def rcvOkToUnmap():
 		break
 	return returnmsg
 
-# TODO: adjust openFile function. if dont find GAST -> BAST mapping, create a new one and map it to a DSAST
-# TODO: finish off invalidateDSAST to include different msgs and then TBs
+# CH function to map block address to DSAST
+# parameters: 	addr(64-bit value): block address from CH
+# returns:		corresponding dsast that has same offset and index or false if no matching dsast is found
+def mapAddrToDSAST(addr):
+	global sastBast
+	for dsast, bast in sastBast.items():
+		if(dsast.offset == (addr & 0xffffffffff) and dsast.index == (addr & 0xffffff)):
+			return dsast
+	return False
+
+# CH function to read from DSAST
+# parameters: 	dsast(DSAST()): DSAST() mapped to file
+# returns:		void: data read from DSAST.offset
+def readLLS(dsast):
+	global sastBast
+	# check if dsast exists
+	# NOTE: changed from [dsast] to [dsast.dsast]
+	return sastBast[dsast.dsast].readFromFile(dsast.offset)
+	
+# CH function to write to DSAST
+# parameters: 	dsast(DSAST()): DSAST() mapped to file
+#			 	writeData(void): data to be written to file
+# returns:		nothing, but maybe should change to return fail or success
+def writeLLS(dsast, writeData):
+	global sastBast
+	adsast = mapBASTtoDSAST(dsast.dsast)
+	return sastBast[adsast.dsast].writeToFile(writeData, dsast.offset)
+
+# CH functions that accept a non-DSAST address
+# def readLLS(addr):
+# 	global sastBast
+# 	# check if dsast exists
+# 	for dsast, bast in sastBast.items():
+# 		if(dsast.offset == addr):
+# 			return sastBast[dsast].readFromFile(dsast.offset)
+# 	return False
+	
+# def writeLLS(addr, writeData):
+# 	global sastBast
+# 	dsast = mapAddrToDSAST()
+# 	if(dsast == False): # could not find corresponding dsast with addr
+# 		dsast = mapBASTtoDSAST(dsast)
+# 		dsast.offset = addr
+# 	return sastBast[dsast].writeToFile(writeData, dsast.offset)
+	
 
 
 # operations for CH

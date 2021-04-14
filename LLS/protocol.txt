@@ -1,5 +1,0 @@
-data integritiy model
-endianness
-forward error correction 
-retry mechanism
-fixed data packet size
