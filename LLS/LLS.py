@@ -3,6 +3,8 @@ import random
 import sys
 import os
 import typing
+import MN_queue
+
 # import base64
 # import hashlib
 # from Crypto import Random
@@ -18,6 +20,14 @@ bastCnt = 0 # counter for next bast file if bastavail is empty
 sastBast = {} # maps DSAST to a BAST
 fpList = {} # Lists file pointers from BASTS, where the index is the BAST value
 
+mn_q = MN_queue()
+
+# ch-lls communication only receives 14bits (28 bits shifted by 14) mapping to a 16k cache line
+# LLS deals with requests for 16k only
+
+# Need to change CH to accept/send 16k pages
+# for now: grab MN queue code and plug it into LLS
+# send screenshot to ruoyi
 
 class GAST:
 	global bastTable
@@ -56,7 +66,7 @@ class GAST:
 
 class BAST:
 	def __init__(self):
-
+		# TODO: check if max value of BAST has been used, then trhow exception (?)
 		global bastCnt
 		global bastAvail
 
@@ -86,10 +96,12 @@ class BAST:
 		with open("./b/"+str(hex(self.value)), 'w') as file:
 			# if we get an offset larger than file size, pad file to fit content
 			fsize = file.seek(0, 2) - file.seek(0, 0)
-			if(fsize > offset):
+			# if offset is larger than file size, pad out file with 0 until offset
+			# NOTE: either make a limit for file size of 64k, or throw an error if offset is larger than file size
+			if(8 * offset > fsize):
 				file.seek(0, 2)
-				file.write(0 for i in range(0, offset - fsize))
-			file.seek(offset, 0)
+				file.write("0" for i in range(0, 8 * offset - fsize))
+			file.seek(8 * offset, 0)
 			file.write(str(value))
 
 	# if offset is larger, raise exception, send back msg to PMU that the process is trying to do funny stuff
@@ -98,10 +110,10 @@ class BAST:
 			# check max offset
 			file.seek(0, 2) # 2 == SEEK_END
 			max_off = file.tell()
-			if(offset > max_off):
+			if(8 * offset > max_off):
 				raise ValueError
-			file.seek(offset)
-			return file.read()
+			file.seek(offset * 8)
+			return file.read(64)
 
 	def open(self):
 		global fpList
@@ -179,18 +191,19 @@ class DSAST:
 					self.offset = random.getrandbits(40)
 				else:
 					self.offset = random.getrandbits(50)
+			self.dsast = self.index | (self.linelimit << 24) | (self.size << 29) | (self.waylimit << 30)
 		else:  # address passed from CH
 			self.size = size
-			self.waylimit = waylimit
-			self.linelimit = linelimit
+			self.waylimit = wayLimit
+			self.linelimit = lineLimit
 			if(self.size): # small DSAST				
 				self.index = (address >> 39) & 0xffffff # 24 bits
 				self.offset = address & 0xffffffffff # 40 bits
-				self.dsast = self.index | (self.lineLimit << 24) | (self.size << 29) | (self.waylimit << 30)
+				self.dsast = self.index | (self.linelimit << 24) | (self.size << 29) | (self.waylimit << 30)
 			else:
 				self.index = (address >> 49) & 0x3fff # 14 bits
 				self.offset = address & 0x3ffffffffffff # 50 bits
-				self.dsast = self.index | (self.lineLimit << 14) | (self.size << 19) | (self.waylimit << 20)
+				self.dsast = self.index | (self.linelimit << 14) | (self.size << 19) | (self.waylimit << 20)
 
 # local function to get BAST value from DSAST key in dict
 # parameters: 	dsast(DSAST()): DSAST to be unmapped
@@ -232,6 +245,9 @@ def gastRequest(dsast):
 
 # FILE OPERATION FUNCTIONS
 def openFile(dsast, gast):
+	# TODO: check if file already exists, if not, do createFile
+	# this function will call mapBASTtoDSAST
+	
 	global bastTable
 	global sastBast
 	
@@ -250,6 +266,7 @@ def openFile(dsast, gast):
 	return dsast
 	# what happens if no bast is mapped to the provided gast
 
+# should only be called from openFile
 def createFile(dsast):
 	# create a bast associated with the dsast, if there's a mapping already, scrap that
 	global sastBast
@@ -304,16 +321,28 @@ def invalidateDSAST(dsast):
 # TODO: finish off invalidateDSAST to include different msgs and then TBs
 # dummy function that tells CH to retire cache line, expects to call rcvOkToUnmap() afterwards
 def sendMsgRetire():
-	return "Retire cache line x"
+	global mn_q
+	mn_q.write(0x01)  # this byte sent to the MN Queue will eventually be replaced with the corresponding
+					  # message code when we figure out the protocol. for now assume 0x1 is retire request
+	return
 
 # dummy function that waits for CH to respond back and acknowledgement
+# need to rethink how we wait for acknowledgement from CH. In the current MN model, 
+# waiting for the ACK would lead the queue to be read even if there isnt any message
+# as well as if the first message does not correspond to the ACK
 def rcvOkToUnmap():
 	# Wait for CH to answer back if its ok from sendMsgRetire
+	global mn_q
 	returnmsg = -1 # 1 if ok, 0 if not ok
-	while(returnmsg != 0 or returnmsg != 1):
-		# pass
-		break
-	return returnmsg
+	while((byte = mn_q.read()) == None): # probably want to create a method in MN_queue class
+										 # for waiting for specific messages, maybe use binary semaphore
+		pass
+
+	return byte
+	# while(returnmsg != 0 or returnmsg != 1):
+	# 	# pass
+	# 	break
+	# return returnmsg
 
 # CH function to map block address to DSAST
 # parameters: 	addr(64-bit value): block address from CH
@@ -330,10 +359,15 @@ def mapAddrToDSAST(addr):
 # returns:		void: data read from DSAST.offset
 def readLLS(dsast):
 	global sastBast
-	# check if dsast exists
 	# NOTE: changed from [dsast] to [dsast.dsast]
-	return sastBast[dsast.dsast].readFromFile(dsast.offset)
-	
+
+	# check if dsast exists
+	for key, value in sastBast.items():
+		if(key == dsast.dsast):
+			return sastBast[dsast.dsast].readFromFile(dsast.offset)
+
+	return
+
 # CH function to write to DSAST
 # parameters: 	dsast(DSAST()): DSAST() mapped to file
 #			 	writeData(void): data to be written to file

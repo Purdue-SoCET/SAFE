@@ -1,7 +1,10 @@
 import math
 import random
 from LLS import *
-from createfiles import createFiles
+from createfiles import createFiles, initFiles
+
+MAX_DSAST_OFFSET = 0
+dsastlist = []
 
 class cache:
     def __init__(self, level): 
@@ -65,6 +68,8 @@ class cache:
             return random.choice(way_list)
         return random.randint(0, self.ways - 1)
     def replace(self,addr):
+        global MAX_DSAST_OFFSET
+        global dsastlist
         x = self.index(addr)
   #      print(x)
   #      print(self.line_size)
@@ -87,7 +92,18 @@ class cache:
                     #       cache address to 72 bits. 63:32 is the DSAST
                     # adsast_offset = block_addr & 0x0000FFFF
                     global_dsast = DSAST(address=block_addr, wayLimit=way_to_replace, lineLimit=self.line_size, size=1)
-                    line_data[x][way_to_replace][i] = writeLLS(global_dsast, line_data[x][way_to_replace][i])
+                    # line_data[x][way_to_replace][i] = writeLLS(global_dsast, line_data[x][way_to_replace][i])
+                    if(global_dsast.offset > MAX_DSAST_OFFSET):
+                        MAX_DSAST_OFFSET = global_dsast.offset 
+                    line_data[x][way_to_replace][i] = writeLLS(global_dsast, 0x5555)
+                    found = 0
+                    for dsast in dsastlist:
+                        if(global_dsast.dsast == dsast):
+                            found = 1
+                            break
+                    if not found:
+                        dsastlist.append(global_dsast.dsast)
+                    # print("Writing to LLS, line: {}".format(line_data[x][way_to_replace][i]))
                     #               caches[self.down].put(line_tag[x][way_to_replace],line_data[x][way_to_replace][block_index])
                     #
                     #caches[self.down].put(addr, self.line_data[x][way_to_replace][block_addr])
@@ -113,7 +129,19 @@ class cache:
                 block_addr = addr & ~(self.block_mask << 2) ^ (i << 2)  # need testing
                 adsast_offset = block_addr & 0x0000FFFF
                 global_dsast = DSAST(address=block_addr, wayLimit=way_to_replace, lineLimit=self.line_size, size=1)
+                
+                if(global_dsast.offset > MAX_DSAST_OFFSET):
+                    MAX_DSAST_OFFSET = global_dsast.offset 
                 self.line_data[x][way_to_replace][i] = readLLS(global_dsast)
+                found = 0
+                for dsast in dsastlist:
+                    if(global_dsast.dsast == dsast):
+                        found = 1
+                        break
+                if not found:
+                    dsastlist.append(global_dsast.dsast)
+                # print("dsast: {}".format(global_dsast))
+                print("Reading from LLS, line: {}".format(self.line_data[x][way_to_replace][i]))
                 #self.line_data[x][way_to_replace][i] = 0x5555
             self.line_state[x][way_to_replace] = 0
         self.line_tag[self.index(addr)][way_to_replace] = addr >> self.tag_offset
@@ -184,6 +212,8 @@ global_dsast = DSAST()
 mapBASTtoDSAST(global_dsast)
 def main():
     createFiles(100)
+    initFiles(4, 218109948)
+
     global caches
     for i in range(5):
         caches.append(cache(i))
@@ -257,6 +287,13 @@ def main():
     print("Number of misses in L4", miss[3])
     print("Number of hits in L5", hits[4])
     print("Number of misses in L5", miss[4])
+
+    global MAX_DSAST_OFFSET
+    print("MAX_DSAST_OFFSET: {}".format(MAX_DSAST_OFFSET))
+
+    global dsastlist
+    for dsast in dsastlist:
+        print("dsast: {}".format(dsast))
 if __name__ == "__main__":
     main()
 
