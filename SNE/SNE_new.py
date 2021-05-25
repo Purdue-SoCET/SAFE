@@ -1,7 +1,8 @@
+#SNE simulation @author: Raghul Prakash
 import threading
-from CH_param_sim import*
+from CH_param_sim import *
 import L4_cache
-import pwntools
+from pwn import *
 
 global MAX_SYS_SOCKET = 2
 global CAST_PMU = 1
@@ -54,21 +55,23 @@ class L3cache:
 
 global ACK
 global buff
-ACK = threading.Semaphore(value=1)
+ACK = [threading.Semaphore(value=1)] * MAX_SYS_SOCKET
 #sleep thread if no data
 def thread_function(sys_NSAST):
 	r = sys_NSAST
 	if (sys_NSAST.tx):
 		buff = Cache_Hierarchy(READ,sys_NSAST,None)		
 		while (True):
+			ACK[sys_NSAST.NSAST].acquire()
 			if (buff.valid):
 				r.send(buff)		
-			ACK.release()
+			ACK[sys_NSAST.NSAST].release()
 	else:
 		while (True):
-			ACK.acquire()
+			ACK[sys_NSAST.NSAST].acquire()
 			if (buff.valid):
 				r.recvn(buff)
+			ACK[sys_NSAST.NSAST].release()
 		Cache_Hierarchy(WRITE,sys_NSAST,None)		
 
 #message format: NPAST, CAST, NSAST
