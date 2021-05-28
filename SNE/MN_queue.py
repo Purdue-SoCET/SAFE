@@ -19,9 +19,12 @@ SIZE_BUFFER = (1 << 16) * 16  #to avoid overflow
 # 8 + 3 bytes for data (3 from header)
 
 class Message:
-	def __init__(self, msg=bytes(16), data=None):
-		self.msg = msg
-		self.data = data
+	def __init__(self, msg=bytes(16), data=None, data_size=0, rx_cast=None, tx_cast=None):
+		self.msg = msg              # message
+        self.rx_cast = rx_cast      # receiver's CAST
+        self.tx_cast = tx_cast      # sender's CAST
+		self.data_size = data_size  # size of data (if any)
+		self.data = data            # data buffer
 
 class MN_queue:
     def __init__(self):
