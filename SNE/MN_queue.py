@@ -7,7 +7,7 @@
 #need to decide if equal is empty
 from multiprocessing import Lock
 
-SIZE_QUEUE = 256 * 16
+SIZE_QUEUE = 256
 SIZE_BUFFER = (1 << 16) * 16  #to avoid overflow
 # LLS NOTES
 # make buffer hold 256 notifications (around 4k), each message containing 16 bytes (most bytes just say source, 
