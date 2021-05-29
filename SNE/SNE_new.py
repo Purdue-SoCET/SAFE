@@ -5,14 +5,13 @@ import L4_cache
 from pwn import *
 import time
 
-global MAX_SYS_SOCKET = 2
-global CAST_PMU = 1
-global CAST_SNE = 8
-global CAST_SAL = 16
-global READ = 0
-global WRITE = 1
+MAX_SYS_SOCKET = 2
+CAST_PMU = 1
+CAST_SNE = 8
+CAST_SAL = 16
+READ = 0
+WRITE = 1
 global ACK
-global buff
 
 #semaphores of each thread/socket/NAS
 ACK = [threading.Semaphore(value=1)] * MAX_SYS_SOCKET
@@ -54,12 +53,12 @@ class SNE:
 	def thread_function(self, NSAST):
 		while (True):
 			ACK[NSAST].acquire()
-				buff = Cache_Hierarchy(READ,NSAST,None)		#read from the NAS address of the Cache Hierarchy. this is the packet coming from the PN via the SAL
-				self.system_sockets[NSAST].send(buff) #send this packet into the TCP/IP stack for it to become a TCP/IP packet
-				time.sleep(1) #wait for the packet to be sent into the stack
-				inv_NSAST = 3000 + MAX_SYS_SOCKET + NSAST #use the other orthogonal address space a.k.a invert it
-				buff_ip = self.system_sockets[inv_NSAST].recv(buff) #receive the ip packet from TCP/IP stack and pass it into a buffer
-				Cache_Hierarchy(WRITE,inv_NSAST,buff_ip)  #write this buffer into the Cache Hierarchy
+			buff = Cache_Hierarchy(READ,NSAST,None)		#read from the NAS address of the Cache Hierarchy. this is the packet coming from the PN via the SAL
+			self.system_sockets[NSAST].send(buff) #send this packet into the TCP/IP stack for it to become a TCP/IP packet
+			time.sleep(1) #wait for the packet to be sent into the stack
+			inv_NSAST = 3000 + MAX_SYS_SOCKET + NSAST #use the other orthogonal address space a.k.a invert it
+			buff_ip = self.system_sockets[inv_NSAST].recv(buff) #receive the ip packet from TCP/IP stack and pass it into a buffer
+			Cache_Hierarchy(WRITE,inv_NSAST,buff_ip)  #write this buffer into the Cache Hierarchy
 			ACK[NSAST].release()	
 	"""
 	main:
@@ -80,7 +79,7 @@ class SNE:
 						self.control_table[i].CAST = MN_decode(message).CAST #it should also store which CAST/PID this socket is attached to now
 					Cache_Hierarchy(WRITE,CAST_PMU,MN_encode(NSAST)) #it should send/write the NSAST that the SNE selected to the PMU
 				#setup is done
-				else if (MN_decode(message).read): #for read/write 
+				elif (MN_decode(message).read): #for read/write 
 					if MN_decode(message).read: #the message is a read and the message also contains the NSAST 
 						if (message.valid):
 							NSAST = MN_decode(message).NSAST
