@@ -34,7 +34,7 @@ class SNE:
 		self.control_table = [0] * MAX_SYS_SOCKET #The state of the socket/NAS. is it active/idle.
 		self.CAST_SNE = 17 #The CAST/PID of the SNE
 		self.L3_cache = L3cache() #The local L3 cache
-		self.system_sockets =[threading.Thread(thread_function,args=(sys_NSAST,message),name=str(i)) for i in range(2 * MAX_SYS_SOCKET)] #2x because two address spaces. one for rx and tx
+		self.system_sockets =[threading.Thread(thread_function,args=(self,NSAST),name=str(i)) for i in range(2 * MAX_SYS_SOCKET)] #2x because two address spaces. one for rx and tx
 		self.message = 0 #the current message that is being read by the SNE.
 		#Socket remote connection. MAX_SYS_SOCKET number of threads are being run and started by __init__. The argument passed is the socket
 		#handle.
