@@ -22,6 +22,7 @@ ACK = [threading.Semaphore(value=1)] * MAX_SYS_SOCKET
 SNE:
 the SNE is a network proxy that is managed by a separate embedded system. This containerization makes it more secure than
 running the networking stack the kernel.
+Currently supports IPC across two processes. Next, need to connect to external IP with HTTP methods
 """
 class SNE:
 	"""
@@ -43,7 +44,7 @@ class SNE:
 			socket_NSAST = remote('127.0.0.1', 3000 + NSAST)
 			ACK[NSAST].acquire()
 			self.system_sockets[NSAST].start(self, NSAST)
-
+		self.main()
 	"""
 	thread_function:
 	each socket/NSAST runs a parallel thread that receives a packet via the L3 cache from the SAL.
@@ -79,13 +80,16 @@ class SNE:
 						self.control_table[i].CAST = MN_decode(message).CAST #it should also store which CAST/PID this socket is attached to now
 					Cache_Hierarchy(WRITE,CAST_PMU,MN_encode(NSAST)) #it should send/write the NSAST that the SNE selected to the PMU
 				#setup is done
-				else if (MN_decode(message).read == True or MN_decode(message).write == True): #for read/write 
+				else if (MN_decode(message).read): #for read/write 
 					if MN_decode(message).read: #the message is a read and the message also contains the NSAST 
 						if (message.valid):
 							NSAST = MN_decode(message).NSAST
 							ACK[NSAST].release() #release the lock so that the thread can acquire in an run its code
 					#writes are tougher and more complicated. needs more work for writes
-					else if MN_decode(message).write:
-						Cache_Hierarchy(WRITE,MN_encode(NSAST, CAST_SNE, NPAST) + ,None)	
-						Cache_Hierarchy(WRITE,MN_decode(message).NSAST,None)								
-				
+					#else if MN_decode(message).write:
+					#	Cache_Hierarchy(WRITE,MN_encode(NSAST, CAST_SNE, NPAST) + ,None)	
+					#	Cache_Hierarchy(WRITE,MN_decode(message).NSAST,None)								
+
+
+if (__name__ == "__main__"):
+	SNE = SNE()
