@@ -58,7 +58,6 @@ global ACK
 global buff
 ACK = [threading.Semaphore(value=1)] * MAX_SYS_SOCKET
 
-
 #message format: NPAST, CAST, NSAST
 """
 SNE:
@@ -83,6 +82,7 @@ class SNE:
 		#multiply MAX by 2 since there is two address spaces that are orthogonal. one for rx and the other for tx
 		for NSAST in range(2 * MAX_SYS_SOCKET):
 			socket_NSAST = remote('127.0.0.1', 3000 + NSAST)
+			ACK[NSAST].acquire()
 			self.system_sockets[NSAST].start(self, NSAST)
 
 	"""
@@ -93,12 +93,14 @@ class SNE:
 	"""
 	def thread_function(self, NSAST):
 		while (True):
-			buff = Cache_Hierarchy(READ,NSAST,None)		#read from the NAS address of the Cache Hierarchy. this is the packet coming from the PN via the SAL
-			self.system_sockets[NSAST].send(buff) #send this packet into the TCP/IP stack for it to become a TCP/IP packet
-			time.sleep(1) #wait for the packet to be sent into the stack
-			inv_NSAST = 3000 + MAX_SYS_SOCKET + NSAST #use the other orthogonal address space a.k.a invert it
-			buff_ip = self.system_sockets[inv_NSAST].recv(buff) #receive the ip packet from TCP/IP stack and pass it into a buffer
-			Cache_Hierarchy(WRITE,inv_NSAST,buff_ip)  #write this buffer into the Cache Hierarchy
+			ACK[NSAST].acquire()
+				buff = Cache_Hierarchy(READ,NSAST,None)		#read from the NAS address of the Cache Hierarchy. this is the packet coming from the PN via the SAL
+				self.system_sockets[NSAST].send(buff) #send this packet into the TCP/IP stack for it to become a TCP/IP packet
+				time.sleep(1) #wait for the packet to be sent into the stack
+				inv_NSAST = 3000 + MAX_SYS_SOCKET + NSAST #use the other orthogonal address space a.k.a invert it
+				buff_ip = self.system_sockets[inv_NSAST].recv(buff) #receive the ip packet from TCP/IP stack and pass it into a buffer
+				Cache_Hierarchy(WRITE,inv_NSAST,buff_ip)  #write this buffer into the Cache Hierarchy
+			ACK[NSAST].release()	
 	"""
 	main:
 	Needs to be called to start the SNE. This is the entry point. It first reads valid message from the MN queue.
@@ -106,27 +108,23 @@ class SNE:
 	"""
 	def main(self):
 		while (True):
-			message = MN_decode(Cache_Hierarchy(READ,CAST_PMU)) #read the MN address space and decode the message
+			message = MN_decode(Cache_Hierarchy(READ,CAST_SNE, None)) #read the MN address space of SNE and decode the message
 			if (MN_decode(message).valid == True): # check if the message is valid
-				if (MN_decode(message).setup == True):
-					#best case: binary search
-					for i in range(MAX_SYS_SOCKET):
+				if (MN_decode(message).setup == True): #check if it is a setup message or an actual read/write message
+					for i in range(MAX_SYS_SOCKET): #find available socket and enable/activate it
 						if (self.control_table[MAX_SYS_SOCKET].enable == 0):
 							self.control_table[MAX_SYS_SOCKET].enable = 1
 							break
 						NSAST = i
-						self.control_table[i].NPAST = MN_decode(message).NPAST
-						self.control_table[i].CAST = MN_decode(message).CAST
-					Cache_Hierarchy(WRITE,CAST_PMU,MN_encode(NSAST)
-				else if (MN_decode(message).readwrite == True):
-					if MN_decode(message).read:
-						message = Cache_Hierarchy(READ,MN_decode(message).NSAST,None)	
-						NSAST = MN_decode(message).NSAST
+						self.control_table[i].NPAST = MN_decode(message).NPAST #the control table should also store the NPAST that is used for this socket
+						self.control_table[i].CAST = MN_decode(message).CAST #it should also store which CAST/PID this socket is attached to now
+					Cache_Hierarchy(WRITE,CAST_PMU,MN_encode(NSAST)) #it should send/write the NSAST that the SNE selected to the PMU
+				#setup is done
+				else if (MN_decode(message).read == True or MN_decode(message).write == True): #for read/write 
+					if MN_decode(message).read: #the message is a read and the message also contains the NSAST 
 						if (message.valid):
-							buff = data = Cache_Hierarchy(READ,NSAST,None)	
-							if (buff.valid):
-								wait()
-							buff = self.system_sockets[NSAST].buffer
+							NSAST = MN_decode(message).NSAST
+							ACK[NSAST].release() #release the lock so that the thread can acquire in an run its code
 					else if MN_decode(message).write:
 						Cache_Hierarchy(WRITE,MN_encode(NSAST, CAST_SNE, NPAST) + ,None)	
 						Cache_Hierarchy(WRITE,MN_decode(message).NSAST,None)								
