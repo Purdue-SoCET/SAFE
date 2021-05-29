@@ -56,6 +56,7 @@ class L3cache:
 
 global ACK
 global buff
+#semaphores of each thread/socket/NAS
 ACK = [threading.Semaphore(value=1)] * MAX_SYS_SOCKET
 
 #message format: NPAST, CAST, NSAST
@@ -125,6 +126,7 @@ class SNE:
 						if (message.valid):
 							NSAST = MN_decode(message).NSAST
 							ACK[NSAST].release() #release the lock so that the thread can acquire in an run its code
+					#writes are tougher and more complicated. needs more work for writes
 					else if MN_decode(message).write:
 						Cache_Hierarchy(WRITE,MN_encode(NSAST, CAST_SNE, NPAST) + ,None)	
 						Cache_Hierarchy(WRITE,MN_decode(message).NSAST,None)								
