@@ -11,51 +11,9 @@ global CAST_SNE = 8
 global CAST_SAL = 16
 global READ = 0
 global WRITE = 1
-
-class L3cache:
-    def __init__(self, cache_size, block_size):
-        self.block_size = block_size
-        self.cache_size = cache_size #12
-        self.cache_mask = (1 << self.cache_size) - 1
-        self.line_tag = [0] * (1 << self.cache_size)
-        self.tag_offset = self.cache_size + self.block_size
-        self.line_data = [0] * (1 << self.cache_size)
-        self.line_state = [0] * (1 << self.cache_size)
-    
-    def index(self, addr):
-        return (addr >> self.block_size) & self.cache_mask
-    
-    def lookup(self, addr):
-        idx = self.index(addr)
-        print("Look up in L1 cache at {} for address {}".format(idx, hex(addr)))
-        return (addr >> self.tag_offset) == self.line_tag[idx]
-    
-    def replace(self,addr):
-        x = self.index(addr)
-        if(self.line_state[x] == 1):
-            L4_cache.put(line_tag[x],line_data[x])  
-            self.line_state[x] = 0    
-        self.line_data[self.index(addr)] = L4_cache.get(addr)
-        self.line_tag[self.index(addr)] = addr >> self.tag_offset
-        
-    def get(self, addr):
-        if(not self.lookup(addr)):
-           print("It's a L3 miss")
-           self.replace(addr) 
-        else:
-            print("It's a L3 hit")           
-        return self.line_data[self.index(addr)]
-        
-    def put(self,addr,data):
-        self.addr = addr
-        if not self.lookup(self.addr):
-           print("It's a L3 write miss in put")  
-           self.replace(self.addr)   
-        print("Insert at index ",self.index(self.addr))   
-        self.line_data[self.index(self.addr)] = data
-
 global ACK
 global buff
+
 #semaphores of each thread/socket/NAS
 ACK = [threading.Semaphore(value=1)] * MAX_SYS_SOCKET
 
