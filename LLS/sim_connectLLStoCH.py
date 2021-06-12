@@ -38,10 +38,13 @@ class cache:
         for i in range(0, self.ways):
             for j in range(0, 1 << self.line_size):
                 self.line_state[j][i] = 2
+
     def index(self, addr):
         return ((addr) & self.cache_mask) >> (self.block_shift + 2)
+
     def block(self, addr):
         return (addr >> 2) & self.block_mask
+
     def get_way(self, addr):
         hit_way = -1
         idx = self.index(addr)
@@ -49,16 +52,15 @@ class cache:
                 if((addr >> self.tag_offset) == self.line_tag[idx][i]):
                     hit_way = i
         return hit_way 
+
     def lookup(self, addr):
         idx = self.index(addr) 
-   #     print("Look up at index ", idx)
-   #     print("Line size", self.line_size)
-    #    print("in level", self.level)
         return_way = self.get_way(addr)
         if return_way != -1 :
             return self.line_state[idx][return_way] != 2
         else:
             return False
+
     def find_way(self, addr, idx):
         way_list = []
         for i in range(0, self.ways):
@@ -67,22 +69,17 @@ class cache:
         if(len(way_list) > 0):
             return random.choice(way_list)
         return random.randint(0, self.ways - 1)
+
     def replace(self,addr):
         global MAX_DSAST_OFFSET
         global dsastlist
         x = self.index(addr)
-  #      print(x)
-  #      print(self.line_size)
-  #      print(len(self.line_data))
         block_index = self.block(addr)
-#        way_to_replace = random.randint(0, self.ways - 1)
         way_to_replace = self.find_way(addr, x)
         if(self.line_state[x][way_to_replace] == 1):
-            if(self.level != 3):
+            if(self.level != 4):
                 for i in range(0, self.block_size):
                     block_addr = addr & ~(self.block_mask << 2) ^ (i << 2)  # need testing
-#               caches[self.down].put(line_tag[x][way_to_replace],line_data[x][way_to_replace][block_index])
-            #
                     caches[self.down].put(addr, self.line_data[x][way_to_replace][i])
                 self.line_state[x][way_to_replace] = 0
             else:
@@ -90,12 +87,12 @@ class cache:
                     block_addr = addr & ~(self.block_mask << 2) ^ (i << 2)  # need testing
                     # NOTE: for now, consider bits 31:0 as the offset of the DSAST until we extend the 
                     #       cache address to 72 bits. 63:32 is the DSAST
-                    # adsast_offset = block_addr & 0x0000FFFF
-                    global_dsast = DSAST(address=block_addr, wayLimit=way_to_replace, lineLimit=self.line_size, size=1)
+                    adsast_offset = block_addr & 0x0000FFFF
+                    global_dsast = DSAST(address=block_addr, wayLimit=way_to_replace, lineLimit=self.line_size, size=1, offset=adsast_offset)
                     # line_data[x][way_to_replace][i] = writeLLS(global_dsast, line_data[x][way_to_replace][i])
                     if(global_dsast.offset > MAX_DSAST_OFFSET):
                         MAX_DSAST_OFFSET = global_dsast.offset 
-                    line_data[x][way_to_replace][i] = writeLLS(global_dsast, 0x5555)
+                    writeLLS(global_dsast, 0x5555)
                     found = 0
                     for dsast in dsastlist:
                         if(global_dsast.dsast == dsast):
@@ -109,9 +106,6 @@ class cache:
                     #caches[self.down].put(addr, self.line_data[x][way_to_replace][block_addr])
     #                print("Miss in all Cache Levels. Going to LLS, dirty data", self.line_data[x][way_to_replace][block_addr], " is written")
                 self.line_state[x][way_to_replace] = 0
-    #    print("Replace function index", x)
-    #    print("Replace function way to replace ", way_to_replace)
-    #    print("Replace function down ", self.down)
 
         if(self.level != 4):
             self.line_tag[x][way_to_replace] = addr >> self.tag_offset
@@ -125,10 +119,12 @@ class cache:
         #    print("Miss in all Cache Levels. Going to LLS, dummy data received")
             #DSAST use = 71-50 bit of ADDR
             #61-20
+            # print("Block size {}".format(self.block_size))
+            # 512
             for i in range(0, self.block_size):
                 block_addr = addr & ~(self.block_mask << 2) ^ (i << 2)  # need testing
                 adsast_offset = block_addr & 0x0000FFFF
-                global_dsast = DSAST(address=block_addr, wayLimit=way_to_replace, lineLimit=self.line_size, size=1)
+                global_dsast = DSAST(address=block_addr, wayLimit=way_to_replace, lineLimit=self.line_size, size=1, offset=adsast_offset)
                 
                 if(global_dsast.offset > MAX_DSAST_OFFSET):
                     MAX_DSAST_OFFSET = global_dsast.offset 
@@ -141,11 +137,12 @@ class cache:
                 if not found:
                     dsastlist.append(global_dsast.dsast)
                 # print("dsast: {}".format(global_dsast))
-                print("Reading from LLS, line: {}".format(self.line_data[x][way_to_replace][i]))
-                #self.line_data[x][way_to_replace][i] = 0x5555
+                # print("Reading from LLS, line: {}".format(self.line_data[x][way_to_replace][i]))
+                
             self.line_state[x][way_to_replace] = 0
         self.line_tag[self.index(addr)][way_to_replace] = addr >> self.tag_offset
         return way_to_replace
+
     def get(self, addr):
      #   print(addr)
         if(not self.lookup(addr)):
@@ -159,6 +156,7 @@ class cache:
             hits[self.level] += 1
             hit_way = self.get_way(addr)          
             return self.line_data[self.index(addr)][hit_way][self.block(addr)]
+
     def put(self,addr,data):
         write_way = -1
         self.addr = addr
@@ -172,6 +170,7 @@ class cache:
         self.line_data[self.index(addr)][write_way][self.block(addr)] = data
         self.line_state[self.index(addr)][write_way] = 1
         print("Writing addr ", hex(addr), " with data " , data," among put in Cache level ", self.level, "at way ", write_way)
+    
     def hit_rate(self):
         print("Hit rate at level", self.level)
         print(hits[0])
@@ -211,8 +210,8 @@ hits = []
 global_dsast = DSAST()
 mapBASTtoDSAST(global_dsast)
 def main():
-    createFiles(100)
-    initFiles(4, 218109948)
+    createFiles(300)
+    initFiles(300, 80000)
 
     global caches
     for i in range(5):
