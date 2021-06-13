@@ -669,11 +669,11 @@ signed int fputs(const char *pStr, FILE *pStream)
 
     return num;
 }
-int main(){
+//int main(){
 	//printf("%d %d",3,4);
-	example_application();
-	return 0;
-}
+
+	//return 0;
+//}
 /* --------------------------------- End Of File ------------------------------ */
 
 
