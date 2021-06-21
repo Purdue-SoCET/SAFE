@@ -116,6 +116,17 @@ void write(int fd_DPAST, char * str, int size){
 		//CH_write(DSAST,str[i]);
 	//}	
 }
+//DPAST associated with stdout
+//no GAST for the stdout intf
+//a CAS associated stdout e.g. A graphics device (CAST)
+//message: 16 bytes (where from, where to , n bytes)
+void write(FILE * stdout, ){
+	int * MN_addr = 0x1234;
+	for (int i = 0; i < message_len; i++){
+		*mn_adddr = message_encode[i];
+	}
+		
+}
 
 void PrintChar(char c)
 {
@@ -129,10 +140,15 @@ void PrintChar(char c)
     //          "syscall;" 
     //          ::: "rdi", "rax"
     //        );
-
     char s[2];
  	s[1] = '\n';
 	s[0] = c;
+	//volatile int * pmu_mn_addr = 0x1234;
+	//message_encode(WRITE, s, CAST_PMU);
+	//for (int i = 0; i < message_len; i++){
+	//	*mn_adddr = message_encode[i];
+	//}
+	//system("python3 MN_queue.py");
 	write(stdout, s, 2); //ssize_t write(int fd, const void *buf, size_t count);
 /*
 It is by convention that, UNIX System shells associates the file descriptor 0 with Standard Input of a process, file descriptor 1 with Standard Output, and file descriptor 2 with Standard Error. 
