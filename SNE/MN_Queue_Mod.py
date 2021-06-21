@@ -7,6 +7,7 @@
 # need to decide if equal is empty
 from multiprocessing import Lock
 from enum import Enum
+from typing import Union
 
 SIZE_QUEUE = 256
 SIZE_BUFFER = (1 << 16) * 16  # to avoid overflow
@@ -55,7 +56,7 @@ class MN_queue:
         self.tail_ptr = [0, 256, 512, 768]
         self.lock = Lock()  # lock for queue
 
-    def write(self, msg, channel=SYSTEM_LOW):
+    def write(self, msg, channel:int=SYSTEM_LOW):
         # default channel system low
         self.lock.acquire()
         checks_overwrite(channel)
@@ -80,15 +81,15 @@ class MN_queue:
     #def response(self):
         
     
-    def ring_counter(self, ptr, channel):
+    def ring_counter(self, ptr:int, channel:int) -> int:
         # counts upward by one within each channel's perspective range
         return (ptr + 1) % SIZE_QUEUE + (channel * SIZE_QUEUE)
 
-    def checks_overwrite(self, channel):
+    def checks_overwrite(self, channel:int) -> None:
         # primitive overwrite warning
         curr_msg = self.stream[self.tail_ptr[channel]]
         if (type(curr_msg) == Message and curr_msg.is_ack == False and curr_msg.is_read == False):
-            print("Warning,an unread msg at channel" + channel + "is overwritten")
+            raise("Warning,an unread msg at channel" + channel + "is overwritten, check mn_queue \"checks_overwrite\" function")
         return None
 
     # def is_full(self):
@@ -99,17 +100,17 @@ class MN_queue:
 class MN_commons:
     #@staticmethod
     def __init__(self):
-        def __create_all_channels():
-            def __create_all_dest(src):
+        def __create_all_channels() -> list:
+            def __create_all_dest(src:int) -> list:
                 #return [list().append(MN_queue()) for dest in range(TOTAL_PARTS) if src != dest]
                 return [list().append(MN_queue()) if src != dest else list().append([]) for dest in range(TOTAL_PARTS)]
             return [__create_all_dest(src) for src in range(TOTAL_PARTS)]
         self.total_queue = __create_all_channels()
 
-    def read(self,src,dest):
+    def read(self,src:int,dest:int):
         return self.total_queue[src][dest].read()
 
-    def write(self,src,dest,msg,channel=SYSTEM_LOW):
+    def write(self,src:int,dest:int,msg,channel:int=SYSTEM_LOW):
         return self.total_queue[src][dest].write(msg,channel)
 
     #def response(self,src,dest):
