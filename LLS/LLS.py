@@ -5,7 +5,7 @@ import os
 import typing
 import pickle
 from multiprocessing import Queue
-from MN_queue import MN_queue, Message
+from ..lib.MN_Queue import MN_queue, Message
 
 # import base64
 # import hashlib
