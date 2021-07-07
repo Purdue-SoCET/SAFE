@@ -5,7 +5,9 @@ import os
 import typing
 import pickle
 from multiprocessing import Queue
-from ..lib.MN_Queue import MN_queue, Message
+
+sys.path.append('../')
+from lib.MN_Queue import MN_queue, Message
 
 # import base64
 # import hashlib
@@ -25,39 +27,44 @@ fpList = {} # Lists file pointers from BASTS, where the index is the BAST value
 
 # in theory, all data objects are stored linearly and accessed through tuples (DATA OBJ, ADDRESS IN HDD), there are no 'files'
 files = []
-sb = Superblock()
 
 OK_TO_UNMAP 	= 0x1
 NOT_OK_TO_UNMAP = 0x2
 NEW_CACHE 		= 0x3
 CACHE_REQUEST	= 0x4
 GAST_REQUEST 	= 0x5
-
-
-
 mnq_lls = MN_queue()
 mnq_ch = MN_queue()
-
 # ch-lls communication only receives 14bits (28 bits shifted by 14) mapping to a 16k cache line
 # LLS deals with requests for 16k only
 
 
-# make file system for SAFE (think about the inodes?) https://man7.org/linux/man-pages/man7/inode.7.html
-# do we care about disk blocks? - NOT RIGHT NOW
-# how could we do hard/soft links? - DONT NEED IT RIGHT NOW 
-# Can a BAST have other BAST references inside it? - POSSIBLY
-# Would there be a wrapper construct for GASTS that represent files or are the GASTS themselves files?
 # for files, where do we hold metadata such as last accessed etc. - PUT IT ANYWHERE
-
-# which elements/objects to save to disk? which are necessary for file persistence?
-# should we save them to BASTS, if so, how do we know which BAST contains the SB/objects? Static allocation?
-
 # STDIN/STDOUT
-
 # 64k / 16mb pages
 # linear storage model that puts multiple data objects in the 64k page, can treat them as separate blocks and allocate
 # blocks correspondingly.
 # save BAST-GAST table and BAST table when shutting down
+
+def main():
+	global sb
+	openFS()
+	print(sb.valid)
+	print("bastavail ", sb.bastavail)
+	print("bastlist ", sb.bastlist)
+	print("bastcnt       ", sb.bastcnt)
+
+	global bastCnt
+	print("local bastcnt ", bastCnt)
+	
+	newbast = BAST()
+	print("newbast value ", newbast.value)
+	newbast.writeToFile(str(newbast.value)+"abcde", 0)
+	print(newbast.readFromFile(10, 0))
+
+	sb.close()
+
+
 
 class Superblock:
 	def __init__(self):
@@ -73,7 +80,7 @@ class Superblock:
 		self.gastbast = bastTable  # same as global dictionary containing GAST -> BAST translations
 		self.bastavail = bastAvail
 		self.bastcnt = bastCnt
-		self.bastList = bastList
+		self.bastlist = bastList
 		'''
 		# following fields do not matter for python simulation, 
 		# only used for identifying disk block allocation
@@ -90,12 +97,19 @@ class Superblock:
 		global bastAvail
 		global bastCnt
 		global bastList
-		files = self.files
-		bastTable = self.gastbast
-		bastAvail = self.bastavail
-		bastCnt = self.bastcnt
-		bastList = self.bastList
-		self.valid = True 
+		global sb
+
+		if(self.openFromDisk() == True):
+			files = self.files
+			bastTable = self.gastbast
+			bastAvail = self.bastavail
+			bastCnt = self.bastcnt
+			bastList = self.bastlist
+		self.valid = True
+		print(sb)
+		print(self.valid)
+		# sb = self
+		# sb.valid = True
 
 	def close(self):
 		global files
@@ -109,24 +123,39 @@ class Superblock:
 		self.gastbast = bastTable  # same as global disctionary containing GAST -> BAST translations
 		self.bastavail = bastAvail
 		self.bastcnt = bastCnt
-		bastList = self.bastList
+		self.bastlist = bastList 
 		self.writeToDisk()
 
 	# for now use different file just for superblock
 	def writeToDisk(self):
-		with open("b/superblock", "w") as file:
+		with open("b/superblock", "wb") as file:
+			global sb
 			pickle.dump(sb, file)
 
-	def openFromDisk(self):
-		if os.path.isfile("b/superblock"):
-			with open("b/superblock", "r") as file:
-				sb = pickle.load(file)
-				return True
-		else:
-			print("Could not find existing superblock in disk!")
-			return False
+def openFS():
+	if os.path.isfile("b/superblock") and os.path.getsize("b/superblock") > 0:
+		with open("b/superblock", "rb") as file:
+			global files
+			global bastTable
+			global bastAvail
+			global bastCnt
+			global bastList
+			global sb
+			unpickler = pickle.Unpickler(file)
+			sb = unpickler.load()
+			files = sb.files
+			bastTable = sb.gastbast
+			bastAvail = sb.bastavail
+			bastCnt = sb.bastcnt
+			bastList = sb.bastlist
+			sb.valid = True
+			return True
+	else:
+		print("Could not find existing superblock in disk!")
+		return False
 
-# differnt sized blocks
+sb = Superblock()
+
 class File:
 	def __init__(self, gast=None):
 		self.inuse = False
@@ -209,30 +238,32 @@ class BAST:
 		return os.path.exists("./b/"+str(hex(count)))
 
 	# if offset is larger, create space for the write
-	def writeToFile(self, value, offset):
+	def writeToFile(self, value, offset=0):
 		with open("./b/"+str(hex(self.value)), 'w') as file:
 			# if we get an offset larger than file size, pad file to fit content
 			fsize = file.seek(0, 2) - file.seek(0, 0)
 			# if offset is larger than file size, pad out file with 0 until offset
 			# NOTE: either make a limit for file size of 64k, or throw an error if offset is larger than file size
-			if(8 * offset > fsize):
+			if(offset > fsize):
 				file.seek(0, 2)
-				file.write("0" for i in range(0, 8 * offset - fsize))
-			file.seek(8 * offset, 0)
+				zeros = '0' * (offset - fsize)
+				file.write(zeros)
+			file.seek(offset, 0)
 			file.write(str(value))
 
 	# if offset is larger, raise exception, send back msg to PMU that the process is trying to do funny stuff
-	def readFromFile(self, offset):
+	# NOTE: changed parameters to accept length, the amount of bytes to read
+	def readFromFile(self, length=64, offset=0):
 		with open("./b/"+str(hex(self.value)), 'r') as file:
 			# check max offset
 			file.seek(0, 2) # 2 == SEEK_END
 			max_off = file.tell()
-			if(8 * offset > max_off):
-				print("file size is {}, trying to read from {}\n".format(max_off, 8*offset))
+			if(offset > max_off):
+				print("file size is {}, trying to read from {}\n".format(max_off, offset))
 				raise ValueError
-			file.seek(offset * 8)
-			return file.read(64)
-
+			file.seek(offset)
+			return file.read(length)
+	'''
 	def open(self):
 		global fpList
 		fp = open("./b/"+str(hex(self.value)), "r+")
@@ -245,24 +276,27 @@ class BAST:
 		if (type(fp) == typing.IO):
 			fp.close()
 		return
-
+	'''
 	def retire(self):
 		# remove mapping from gast to bast
 		global bastTable
+		global bastList
 		# Leave responsibility of doing the unmapping to the parent function, as there could be key conflict if multiple
 		# gasts reference the same bast
 		# gastTable = {v: k for k, v in bastTable.items()}
 		# agast = gastTable[self]
 		bastAvail.append(self.value)
-		self.close()
-		fpList[self.value] = 0
+		bastList.remove(self)
+		# self.close()
+		# fpList[self.value] = 0
 		# remove mapping to DSAST
 		global sastBast
 		for sast in sastBast:
 			if sastBast[sast.dsast] == self:
 				sastBast.pop(sast.dsast)
 				return
-		return "Did not find dsast to bast mapping"
+		print("Did not find dsast to bast mapping when retiring BAST")
+		return 
 
 class OIT:
 	def __init__(self, permissions):
@@ -572,17 +606,17 @@ def writeLLS(dsast, writeData):
 
 if __name__ == '__main__':
 	# global sastBast
-	
-	for i in range(0,10):
-		name = "gast"+str(i)
-		name = GAST()
+	main()
+	# for i in range(0,10):
+	# 	name = "gast"+str(i)
+	# 	name = GAST()
 
 	# print(bastTable)
 
-	dsast = DSAST()
-	gastlist = [gast for gast in bastTable]
-	agast = gastlist[0]
-	print(agast)
+	# dsast = DSAST()
+	# gastlist = [gast for gast in bastTable]
+	# agast = gastlist[0]
+	# print(agast)
 	# mapBASTtoDSAST(dsast, agast)
 	# sastBast = openFile(dsast, agast)
 

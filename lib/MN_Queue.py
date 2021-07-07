@@ -115,4 +115,8 @@ class MN_commons:
 
     #def response(self,src,dest):
 
+def main():
+    pass
+
 if __name__ == '__main__':
+    main()
