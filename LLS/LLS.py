@@ -3,7 +3,9 @@ import random
 import sys
 import os
 import typing
-import MN_queue
+import pickle
+from multiprocessing import Queue
+from MN_queue import MN_queue, Message
 
 # import base64
 # import hashlib
@@ -16,18 +18,127 @@ oitTable = [] # could be a tree indexed by lookup uses, but functionally is just
 oatTable = {} # Hash table, index should be OIT's value
 bastTable = {} # List of bast, key: GAST key and domain, value: BAST
 bastAvail = [] # list of available bast file names
+bastList = []
 bastCnt = 0 # counter for next bast file if bastavail is empty
 sastBast = {} # maps DSAST to a BAST
 fpList = {} # Lists file pointers from BASTS, where the index is the BAST value
 
-mn_q = MN_queue()
+# in theory, all data objects are stored linearly and accessed through tuples (DATA OBJ, ADDRESS IN HDD), there are no 'files'
+files = []
+sb = Superblock()
+
+OK_TO_UNMAP 	= 0x1
+NOT_OK_TO_UNMAP = 0x2
+NEW_CACHE 		= 0x3
+CACHE_REQUEST	= 0x4
+GAST_REQUEST 	= 0x5
+
+
+
+mnq_lls = MN_queue()
+mnq_ch = MN_queue()
 
 # ch-lls communication only receives 14bits (28 bits shifted by 14) mapping to a 16k cache line
 # LLS deals with requests for 16k only
 
-# Need to change CH to accept/send 16k pages
-# for now: grab MN queue code and plug it into LLS
-# send screenshot to ruoyi
+
+# make file system for SAFE (think about the inodes?) https://man7.org/linux/man-pages/man7/inode.7.html
+# do we care about disk blocks? - NOT RIGHT NOW
+# how could we do hard/soft links? - DONT NEED IT RIGHT NOW 
+# Can a BAST have other BAST references inside it? - POSSIBLY
+# Would there be a wrapper construct for GASTS that represent files or are the GASTS themselves files?
+# for files, where do we hold metadata such as last accessed etc. - PUT IT ANYWHERE
+
+# which elements/objects to save to disk? which are necessary for file persistence?
+# should we save them to BASTS, if so, how do we know which BAST contains the SB/objects? Static allocation?
+
+# STDIN/STDOUT
+
+# 64k / 16mb pages
+# linear storage model that puts multiple data objects in the 64k page, can treat them as separate blocks and allocate
+# blocks correspondingly.
+# save BAST-GAST table and BAST table when shutting down
+
+class Superblock:
+	def __init__(self):
+		global files
+		global bastTable
+		global bastAvail
+		global bastCnt
+		global bastList
+
+		self.valid = False
+		# self.num_inodes = None
+		self.files = files  # same as global files list
+		self.gastbast = bastTable  # same as global dictionary containing GAST -> BAST translations
+		self.bastavail = bastAvail
+		self.bastcnt = bastCnt
+		self.bastList = bastList
+		'''
+		# following fields do not matter for python simulation, 
+		# only used for identifying disk block allocation
+		self.block_size = None
+		self.num_blocks = None
+		self.inodes = None		
+		self.free_blocks = None
+		self.data = None
+		'''
+
+	def start(self):
+		global files
+		global bastTable
+		global bastAvail
+		global bastCnt
+		global bastList
+		files = self.files
+		bastTable = self.gastbast
+		bastAvail = self.bastavail
+		bastCnt = self.bastcnt
+		bastList = self.bastList
+		self.valid = True 
+
+	def close(self):
+		global files
+		global bastTable
+		global bastAvail
+		global bastCnt
+		global bastList
+		self.valid = False
+		# self.num_inodes = len(files)
+		self.files = files  # same as global files list
+		self.gastbast = bastTable  # same as global disctionary containing GAST -> BAST translations
+		self.bastavail = bastAvail
+		self.bastcnt = bastCnt
+		bastList = self.bastList
+		self.writeToDisk()
+
+	# for now use different file just for superblock
+	def writeToDisk(self):
+		with open("b/superblock", "w") as file:
+			pickle.dump(sb, file)
+
+	def openFromDisk(self):
+		if os.path.isfile("b/superblock"):
+			with open("b/superblock", "r") as file:
+				sb = pickle.load(file)
+				return True
+		else:
+			print("Could not find existing superblock in disk!")
+			return False
+
+# differnt sized blocks
+class File:
+	def __init__(self, gast=None):
+		self.inuse = False
+		self.gast = gast
+		self.name = ""
+		self.last_modified = 0
+		self.last_accessed = 0
+		self.last_changed = 0
+		self.size = 0
+		# What other fields would we need?
+		# self.block = None  # where in disk is it stored
+		# self.translations = []  # list of translations to other blocks
 
 class GAST:
 	global bastTable
@@ -51,7 +162,7 @@ class GAST:
 		# else:
 		# aBAST = BAST() # address for tagged data
 		# bastTable[(self.domain, self.key)] = aBAST
-		# TODO: also have to add a corresponding BAST/OAT
+		# TODO: (only when want to work with OATs) also have to add a corresponding BAST/OAT
 
 
 	def duplicate(self):
@@ -66,9 +177,10 @@ class GAST:
 
 class BAST:
 	def __init__(self):
-		# TODO: check if max value of BAST has been used, then trhow exception (?)
+		# NOTE: check if max value of BAST has been used, then throw exception (realistically should never happen)
 		global bastCnt
 		global bastAvail
+		global bastList
 
 		if not bastAvail:
 			if(self.checkFileExists(bastCnt)):
@@ -76,8 +188,12 @@ class BAST:
 				bastCnt += 1
 			else:
 				# maybe do not need this open/write?
-				with open("./b/"+str(hex(bastCnt))) as file:
-					file.write()
+				try:
+					with open("./b/"+str(hex(bastCnt))) as file:
+						file.write()
+				except:
+					print("BAST File not found ({})".format(str(hex(bastCnt))))
+
 				self.value = bastCnt
 				bastCnt +=1
 		else:
@@ -86,6 +202,7 @@ class BAST:
 				self.value = oldest
 			# clear file
 			self.writeToFile("", 0)
+		bastList.append(self)
 
 	
 	def checkFileExists(self, count):
@@ -111,6 +228,7 @@ class BAST:
 			file.seek(0, 2) # 2 == SEEK_END
 			max_off = file.tell()
 			if(8 * offset > max_off):
+				print("file size is {}, trying to read from {}\n".format(max_off, 8*offset))
 				raise ValueError
 			file.seek(offset * 8)
 			return file.read(64)
@@ -221,22 +339,23 @@ def mapBASTtoDSAST(dsast, gast=None):
 	global bastTable
 	global sastBast
 	# Check if GAST is mapped to a BAST
-	if(not gast):
-		aBast = BAST()
-	elif ((gast.domain, gast.key) in bastTable.keys()):
-		aBast = bastTable[(gast.domain, gast.key)]
-	else:
-		print("Failed to find BAST")
-		return
+	aBast = None
+	if(gast != None):		
+		if ((gast.domain, gast.key) in bastTable.keys()):
+			aBast = bastTable[(gast.domain, gast.key)]
+		else:
+			print("Failed to find BAST using GAST")
+			return
 
 	# Check if BAST is mapped to a DSAST
 	for sast, bast in sastBast.items():
-		if(bast == aBast): # already mapped
+		if(bast == aBast or sast == dsast.dsast): # already mapped
 			return sast
 
 	# Did not find a matching DSAST for the BAST
+	aBast = BAST()
 	sastBast[dsast.dsast] = aBast
-	return dsast
+	return dsast.dsast
 
 # PMU function that requests a gast, WIP
 def gastRequest(dsast):
@@ -321,8 +440,8 @@ def invalidateDSAST(dsast):
 # TODO: finish off invalidateDSAST to include different msgs and then TBs
 # dummy function that tells CH to retire cache line, expects to call rcvOkToUnmap() afterwards
 def sendMsgRetire():
-	global mn_q
-	mn_q.write(0x01)  # this byte sent to the MN Queue will eventually be replaced with the corresponding
+	global mnq_ch
+	mnq_ch.write(msg=0x01)  # this byte sent to the MN Queue will eventually be replaced with the corresponding
 					  # message code when we figure out the protocol. for now assume 0x1 is retire request
 	return
 
@@ -332,17 +451,14 @@ def sendMsgRetire():
 # as well as if the first message does not correspond to the ACK
 def rcvOkToUnmap():
 	# Wait for CH to answer back if its ok from sendMsgRetire
-	global mn_q
+	global mnq_lls
 	returnmsg = -1 # 1 if ok, 0 if not ok
-	while((byte = mn_q.read()) == None): # probably want to create a method in MN_queue class
-										 # for waiting for specific messages, maybe use binary semaphore
-		pass
-
-	return byte
-	# while(returnmsg != 0 or returnmsg != 1):
-	# 	# pass
-	# 	break
-	# return returnmsg
+	msg = mnq_lls.read()   # probably want to create a method in MN_queue class, as messages could be received out of order
+							# for waiting for specific messages, maybe use binary semaphore
+	if(msg.msg == OK_TO_UNMAP):
+		return True
+	else:
+		return False
 
 # CH function to map block address to DSAST
 # parameters: 	addr(64-bit value): block address from CH
@@ -361,11 +477,18 @@ def readLLS(dsast):
 	global sastBast
 	# NOTE: changed from [dsast] to [dsast.dsast]
 
+	# adsast = mapBASTtoDSAST(dsast) # returns tag, not obj
+	# print("readLLS, {}, {}".format(type(dsast), type(adsast)))
 	# check if dsast exists
 	for key, value in sastBast.items():
+		print("readLLS: DSAST: {}  bast: {}\n".format(key, value.value))
 		if(key == dsast.dsast):
-			return sastBast[dsast.dsast].readFromFile(dsast.offset)
+			print("readLLS: Found matching DSAST! Reading dsast {} (bast {})\n".format(key, value.value))
+			return value.readFromFile(dsast.offset)
 
+			
+	print("readLLS: missing DSAST {}".format(dsast.dsast))
+	print("readLLS: could not find dsast")
 	return
 
 # CH function to write to DSAST
@@ -374,8 +497,9 @@ def readLLS(dsast):
 # returns:		nothing, but maybe should change to return fail or success
 def writeLLS(dsast, writeData):
 	global sastBast
-	adsast = mapBASTtoDSAST(dsast.dsast)
-	return sastBast[adsast.dsast].writeToFile(writeData, dsast.offset)
+	adsast = mapBASTtoDSAST(dsast)
+	print("writeLLS: Writing {} to {}\n".format(dsast.dsast, writeData))
+	sastBast[adsast.dsast].writeToFile(writeData, dsast.offset)
 
 # CH functions that accept a non-DSAST address
 # def readLLS(addr):
