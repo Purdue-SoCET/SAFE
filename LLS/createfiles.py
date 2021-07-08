@@ -20,9 +20,15 @@ def createFiles(n):
 def initFiles(num_files, num_cachelines):
 	array = [0x0000000000005555 for i in range(0, num_cachelines)]
 	for i in range(0, num_files):
-		with open('b/'+str(hex(i)), 'w') as file:
-			for element in array:
-				file.write(str(element))
+		fpath = 'b/'+str(hex(i))
+		with open(fpath, 'w') as file:
+			fsize = os.path.getsize(fpath)
+			# print("{} fsize: {}".format(i, fsize))
+			if (fsize >= (num_cachelines * 5)):
+				pass
+			else:
+				for element in array:
+					file.write(str(element))
 
 def main():
 	if(len(sys.argv) != 2):
