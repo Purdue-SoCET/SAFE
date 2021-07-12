@@ -1,0 +1,145 @@
+#!/usr/bin/env python3
+import sys
+import os
+import os.path
+import re
+import subprocess
+import datetime
+import tempfile
+
+#for emailing
+import smtplib
+from email.mime.text import MIMEText
+
+RECEIVER_EMAIL = "smussman@purdue.edu"
+
+def send_email(cFilename, asmFilename):
+    # http://docs.python.org/library/email-examples.html
+    cFile = open(cFilename)
+    asmFile = open(asmFilename)
+    msg = MIMEText("C File:\n" + cFile.read() + "\nASM file:\n" + asmFile.read())
+    cFile.close()
+    asmFile.close()
+    username = os.environ["USER"]
+    msg['Subject'] = "[Compiler] Compilation of %s by %s" % (cFilename, username)
+    msg['From'] = "%s@purdue.edu" % (username)
+    msg['To'] = RECEIVER_EMAIL
+
+    s = smtplib.SMTP('localhost')
+    s.sendmail(msg['From'], msg['To'], msg.as_string())
+    s.quit()
+
+# Attempt to assemble the outputted file.  If it has an error, append the error
+# to the end of the file
+# Returns true if asm returned '0', else returns false
+def test_asm(asmFilename):
+    error_msg = 0
+    myTemp = tempfile.mkstemp(suffix=".hex")
+    os.close(myTemp[0])
+    myTemp = myTemp[1]
+    p = subprocess.Popen(["./../Assembler/asm", asmFilename, "-o", myTemp],
+                         stdout=subprocess.PIPE)
+    if p.wait() != 0:
+        with open(asmFilename, "a") as f:
+            error_msg = p.communicate()[0]
+            f.write(error_msg)
+    os.remove(myTemp)
+    return error_msg == 0
+
+
+def main():
+    # Regexps for matching various types of lines
+    isDirective = re.compile("\.[a-z]")
+    isMove = re.compile("move")
+    isLi = re.compile("li\s+(\$[a-zA-Z0-9]{1,3}),(-?\d+)\s+\# (0x[a-f0-9]+)")
+    isJ = re.compile("j\s+\$(\d{1,2}|sp|fp)")
+    isB = re.compile("b\s+\$")
+    isLa = re.compile("la\s+(\$[a-zA-Z0-9]{1,3}),")
+    isSll = re.compile("sll\s+(\$[a-zA-Z0-9]{1,3}),(\$[a-zA-Z0-9]{1,3}),(-?\d+)")
+    isSlt = re.compile("slt\s+(\$[a-zA-Z0-9]{1,3}),(\$[a-zA-Z0-9]{1,3}),(-?\d+)")
+    isSltu = re.compile("sltu\s+(\$[a-zA-Z0-9]{1,3}),(\$[a-zA-Z0-9]{1,3}),(-?\d+)")
+    # check sys.argv for len, # of args, etc
+    if len(sys.argv) != 2:
+        sys.stderr.write("Usage: " + sys.argv[0] + " filename")
+        sys.exit(1)
+    cFilename = os.path.abspath(sys.argv[1])
+    if not os.access(cFilename, os.F_OK | os.R_OK):
+        sys.stderr.write("Cannot access C file: " + cFilename)
+        sys.exit(2)
+    myTemp = tempfile.mkstemp(suffix=".s")
+    os.close(myTemp[0])
+    myTemp = myTemp[1]
+    asmFilename = ''.join(cFilename.split('.')[:-1]) + ".asm"
+    # Call the compiler.  -S gives assembly output, -o sets output, -O0 turns off optimizations
+    p = subprocess.call(["mips-linux-gnu-gcc", "-S", "-o", myTemp, "-O0","-fno-stack-protector", "-mabi=32", "-mfp32","-msym32", "-mlong32", "-mno-split-addresses","-mno-explicit-relocs", "-G2", cFilename])
+    with open(myTemp, "r") as tmpAsmFile:
+        outputLines = [] 
+        # For each line, check what it is. If we want to keep it,
+        # append it to outputLines.  We also rewrite some instructions
+        # to keep them in our instruction set
+        for line in tmpAsmFile.readlines():
+            line = line.strip()
+            # If the current line is not a directive
+            if isDirective.match(line) is not None:
+                continue
+            if isMove.match(line) is not None:
+                line = re.sub("move", "addu", line) + ",$0"
+            if isLi.match(line) is not None:
+                liMatch = isLi.match(line)
+                #print(line,liMatch.group(3))
+                hexVal = int(liMatch.group(3), 16)
+                hexVal = 0x00000000ffffffff & hexVal
+                #print(hexVal)
+                if hexVal >= 0x10000:
+                    outputLines.append("lui " + liMatch.group(1) + "," + str(hexVal & 0xFFFF0000))
+                line = "ori\t" + liMatch.group(1) + ", $zero, " + str(hexVal & 0xFFFF)
+            if isJ.match(line) is not None:
+                line = re.sub("j", "jr", line)
+            if isB.match(line) is not None:
+                line = re.sub("b", "j", line)
+            if isLa.match(line) is not None:
+                #line = re.sub("la", "li", line)
+                #print("la")
+                #print(line)                
+                laMatch = isLa.match(line)
+                #line = re.sub("la", "li", line)
+                #print(line)     
+                #if hexVal >= 0x10000:
+                #    outputLines.append("lui " + laMatch.group(1) + "," + str(hexVal & 0xFFFF0000))
+                line = "ori\t" + laMatch.group(1) + ", $zero, " + line[line.index(",")+1:]
+                #print(line)
+            if isSll.match(line) is not None:
+                SllMatch = isSll.match(line)
+                outputLines.append(("ori\t" + SllMatch.group(1) + ", $zero, " + (SllMatch.group(3))))
+                line = "sllv\t" + SllMatch.group(1) + ',' + SllMatch.group(2) + ',' + SllMatch.group(1)
+            if isSlt.match(line) is not None:
+                SltMatch = isSlt.match(line)
+                outputLines.append(("ori\t" + SltMatch.group(1) + ", $zero, " + (SltMatch.group(3))))
+                line = "slt\t" + SltMatch.group(1) + ',' + SltMatch.group(2) + ',' + SltMatch.group(1)
+            if isSltu.match(line) is not None:
+                SltuMatch = isSltu.match(line)
+                outputLines.append(("ori\t" + SltuMatch.group(1) + ", $zero, " + (SltuMatch.group(3))))
+                line = "sltu\t" + SltuMatch.group(1) + ',' + SltuMatch.group(2) + ',' + SltuMatch.group(1)
+            outputLines.append("\t" + line)
+            #print(line)
+        outputLines.append(8*' ' + "halt")
+        tmpAsmFile.close()
+    os.remove(myTemp)
+    # Write outputLines to the temp file for testing
+    with open(myTemp, "w") as asmFile:
+        for line in outputLines:
+            asmFile.write(line + "\n")
+        asmFile.close()
+
+    # Run final tests before returning
+    test_asm(myTemp)
+    #send_email(cFilename, myTemp)
+
+    # Echo outputLines
+    with open(myTemp, "r") as asmFile:
+        print(asmFile.read())
+    os.remove(myTemp)
+
+
+if __name__ == "__main__":
+    main()
