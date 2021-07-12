@@ -2,19 +2,20 @@ import random
 import sys
 import os
 import typing
-import MN_queue
+
 sys.path.append("../")
 from LLS.LLS import DSAST, mapBASTtoDSAST, GAST
 from LLS.DAS import DPAST, mapDSASTtoDPAST
+from lib.MN_Queue import MN_queue
 
 gastTable = {} 
 mn_q = MN_queue()
 running_queue = []
 waiting_queue = []
 sleeping_queue = []
-
+'''
 class PMU:
-	def __init__(self, permissions=bytes(2), encrypt=None, addr=None, CAST):
+	def __init__(self, permissions=bytes(2), encrypt=None, addr=None, CAST=None):
 		global gastTable
 		global procID
 		global dsastTable
@@ -26,24 +27,37 @@ class PMU:
 	time_queue = [] # queue for processes that become initially created
 	work_queue = [] # queue for processes that are waiting to be executed and running
 	cpu_process = Process(-1, "test")
+'''
+class CAST:
+	def __init__(self, gast=GAST()):
+		self.index = random.getrandbits(20)  # actual CAST is this 20-bit tag
+		self.mnq = MN_queue()
+		self.gast = gast
 
-class CAS:
-	def __init__(self):
-		
-		
 class Proc:
-	def __init__(self, ID, DSAST, GAST=GAST()):
+	def __init__(self, ID=0, DSAST=DSAST(), GAST=GAST()):
 		self.ID = 0 #need to figure out CAS values
 		self.status = 0 # waiting = 0, running = 1, sleeping = 2
-		self.DSAST = DSAST() #from LLS
+		self.DSAST = DSAST #from LLS
 		self.GAST = GAST 
 		self.DPAST = DPAST(size=0, DSAST=self.DSAST)
+		self.prog = CAST(gast=GAST)
+		self.threads = [CAST(gast=GAST)]  ## need to determine how many CASTS to initialize, maybe more casts are added at runtime. one for each thread
 		self.priority = 0 #influences how much run time it gets 
-		# need to figure out values for these
-		self.data = 0
-		self.heap = 0
-		self.stack = 0
+		self.stdin = GAST()
+		self.stdout = GAST()
+		self.strerr = GAST()
+
+
+#Functions suggested by John (get on same page before deleting)
+#	def respondToPN(self, count):
+#		message = (data, wait, interrupt, acknowledge)
+#		return message
+#	# Wait - actual delay 
+#	# Acknowledge - PMU receives process
 	
+#	def requestCache(self, value, offset):
+#		return acknowledged
 
 #Step 1
 	#def receiveGAST(self, offset): 
@@ -75,3 +89,4 @@ class Proc:
 		return 
 
 if __name__ == '__main__':
+	pass
