@@ -1,6 +1,9 @@
-
+#y is the addr space which is alloc to A to talk to B
+#y is the system addr space
+#A writes its stuff. Then, it writes a message notification to CAST_B
+#B has an MN queue to pull from it and it also has a thread to pull from that address space by waking up
 MAX_SOCKET = 3
-class SAL:
+class CAST_SAL:
 	def __init__(self):
 		self.MN_queue = MN_Queue()
 		self.NPASTtoNSAST = [0] * MAX_SOCKET
