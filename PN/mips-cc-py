@@ -37,7 +37,7 @@ def test_asm(asmFilename):
     myTemp = tempfile.mkstemp(suffix=".hex")
     os.close(myTemp[0])
     myTemp = myTemp[1]
-    p = subprocess.Popen(["./../Assembler/asm", asmFilename, "-o", myTemp],
+    p = subprocess.Popen(["./asm", asmFilename, "-o", myTemp],
                          stdout=subprocess.PIPE)
     if p.wait() != 0:
         with open(asmFilename, "a") as f:
