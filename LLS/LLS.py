@@ -4,10 +4,12 @@ import sys
 import os
 import typing
 import pickle
+import shutil
 from multiprocessing import Queue
 from DAS import DPAST, mapDSASTtoDPAST
 sys.path.append('../')
 from lib.MN_Queue import MN_queue, Message, MN_commons, Parts
+from PN.PN import run
 
 
 # import base64
@@ -53,16 +55,25 @@ def main():
 	openFS()
 	print("sb.valid ", sb.valid)
 	# _test_bast_persistence()
-	newgast = GAST()
-	bastTable[(newgast.domain, newgast.key)].writeToFile("abcde", 0)
-	process = Proc(ID=0, GAST=newgast)
-	print(process.DSAST)
-	process.sendGAST()
-	print(process.DSAST)
-	process.updateCAS()
+	_test_run_prog()
+	
+	# newgast = GAST()
+	# bastTable[(newgast.domain, newgast.key)].writeToFile("abcde", 0)
+	# process = Proc(ID=0, GAST=newgast)
+	# print(process.DSAST)
+	# process.sendGAST()
+	# print(process.DSAST)
+	# process.updateCAS()
 	# process.sendDPAST()
 
 	sb.close()
+
+def _test_run_prog():
+	newgast = GAST()
+	abast = bastTable[(newgast.domain, newgast.key)]
+	shutil.copyfile("PN/meminit.hex", ".b/" + abast.getfname)
+	run(newgast)
+
 
 def _test_mnq():
 	# CAST is equivalent to proc object in legacy systems
@@ -244,6 +255,8 @@ class BAST:
 			self.writeToFile("", 0)
 		bastList.append(self)
 
+	def getfname(self):
+		return str(hex(self.value))
 	
 	def checkFileExists(self, count):
 		return os.path.exists("./b/"+str(hex(count)))

@@ -18,6 +18,7 @@ class DPAST:
     def __init__(self,size,DSAST):
     # Size: 0 = Large DPAST, 1 = Small DPAST
         self.size = size
+        self.dsast = DSAST
         if (size): #small DPAST
             self.offset = random.getrandbits(40)
             self.data = random.getrandbits(18)#  randomize address to keep track of or the actual data address from DSAST? 
