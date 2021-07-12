@@ -15,7 +15,7 @@ SMALL_LINE_LIMIT = 0# determined by pc
 INVALID_TRANSLATION = 0x00000000 # 32 bits of zero
 
 class DPAST:
-    def __init__(self,size,DSAST)
+    def __init__(self,size,DSAST):
     # Size: 0 = Large DPAST, 1 = Small DPAST
         self.size = size
         if (size): #small DPAST
@@ -27,10 +27,11 @@ class DPAST:
         DPAST_process.append(self.data)    
 
 def mapDSASTtoDPAST(aDSAST):
-    if (DPASTDSAST[aDSAST]):
+    if (aDSAST in DPASTDSAST):
         return
     aDPAST = DPAST(aDSAST.size,aDSAST)  
     DPASTDSAST[aDSAST] = aDPAST
+    # print(DPASTDSAST)
     return 
 
 
