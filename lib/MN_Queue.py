@@ -8,6 +8,7 @@
 from multiprocessing import Lock
 from enum import Enum
 from typing import Union
+from Queue import queue
 
 SIZE_QUEUE = 256
 SIZE_BUFFER = (1 << 16) * 16  # to avoid overflow
@@ -112,6 +113,13 @@ class MN_commons:
 
     def write(self,src:int,dest:int,msg,channel:int=SYSTEM_LOW):
         return self.total_queue[src][dest].write(msg,channel)
+    
+    # have a queue (list) for messages waiting for response. In read() method have cases to catch responses and mark
+    # waiting messages in the list as read (pop them out of the list and return to original function)
+    #def wait_update()
+    #    ...
+    #    yield raise exception
+
 
     #def response(self,src,dest):
 

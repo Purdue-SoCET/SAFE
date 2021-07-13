@@ -7,10 +7,12 @@ import pickle
 import shutil
 import ctypes
 from multiprocessing import Queue
-from DAS import DPAST, mapDSASTtoDPAST
+
 
 sys.path.append('../')
 from lib.MN_Queue import MN_queue, Message, MN_commons, Parts
+from PN.SAL import DPAST, mapDSASTtoDPAST
+# from PMU.PMU import Proc
 # from PN.PN import run
 
 
@@ -52,33 +54,34 @@ MN = MN_commons()
 # blocks correspondingly.
 # save BAST-GAST table and BAST table when shutting down
 
-fp = "Simulator/sim.so"
-simulator = ctypes.CDLL(fp)
+# fp = "Simulator/sim.so"
+# simulator = ctypes.CDLL(fp)
 
-def run(gast):
-    global simulator
-    global bastTable
-    # send GAST to PMU
-    # proc = createDPAST(gast)
-    # receive DPAST back and run it
-    bast = bastTable[(gast.domain, gast.key)]
-    simulator.main("../../LLS/b/" + bast.getfname)
+# def run(gast):
+#     global simulator
+#     global bastTable
+#     # send GAST to PMU
+#     # proc = createDPAST(gast)
+#     # receive DPAST back and run it
+#     bast = bastTable[(gast.domain, gast.key)]
+#     simulator.main("../../LLS/b/" + bast.getfname)
+
 
 def main():
     global sb
     openFS()
     print("sb.valid ", sb.valid)
     # _test_bast_persistence()
-    _test_run_prog()
+    # _test_run_prog()
     
-    # newgast = GAST()
-    # bastTable[(newgast.domain, newgast.key)].writeToFile("abcde", 0)
-    # process = Proc(ID=0, GAST=newgast)
-    # print(process.DSAST)
-    # process.sendGAST()
-    # print(process.DSAST)
-    # process.updateCAS()
-    # process.sendDPAST()
+    newgast = GAST()
+    print("allocated GAST:           ", newgast)
+    bastTable[(newgast.domain, newgast.key)].writeToFile("abcde", 0)
+    print("mapped BAST:              ", bastTable[(newgast.domain, newgast.key)])
+    process = Proc(ID=0, gast=newgast)
+    print("process' allocated DSAST: ", process.DSAST)
+    print("DSAST -> BAST table:      ", sastBast)
+    print("contents of BAST:         ", sastBast[process.DSAST].readFromFile())
 
     sb.close()
 
@@ -447,14 +450,13 @@ def mapBASTtoDSAST(dsast, gast=None):
         else:
             print("Failed to find BAST using GAST")
             return
-
+    else:
+        aBast = BAST()
     # Check if BAST is mapped to a DSAST
     for sast, bast in sastBast.items():
         if(bast == aBast or sast == dsast): # already mapped
             return sast
 
-    # Did not find a matching DSAST for the BAST
-    aBast = BAST()
     #FIXME: make consistent use of dsast.dsast or the object
     sastBast[dsast] = aBast
     return dsast
@@ -603,30 +605,27 @@ def writeLLS(dsast, writeData):
     print("writeLLS: Writing {} to {}\n".format(dsast.dsast, writeData))
     sastBast[adsast.dsast].writeToFile(writeData, dsast.offset)
 
+class CAST:
+	def __init__(self, gast=GAST()):
+		self.index = random.getrandbits(20)  # actual CAST is this 20-bit tag
+		self.mnq = MN_queue()
+		self.gast = gast
 
 class Proc:
-    def __init__(self, ID=0, DSAST=DSAST(), GAST=GAST()):
-        self.ID = 0 #need to figure out CAS values
-        self.status = 0 # waiting = 0, running = 1, sleeping = 2
-        self.DSAST = DSAST #from LLS
-        self.GAST = GAST 
-        self.DPAST = DPAST(size=0, DSAST=self.DSAST)
-        self.priority = 0 #influences how much run time it gets 
-        # need to figure out values for these
-        self.data = 0
-        self.heap = 0
-        self.stack = 0
-
-    def sendGAST(self): 
-        self.DSAST = mapBASTtoDSAST(dsast=self.DSAST, gast=self.GAST)
-        return 
-
-    def updateCAS(self): 
-        mapDSASTtoDPAST(self.DSAST)
-        return 
-
-    def sendDPAST(self): 
-        return 
+	def __init__(self, ID=0, DSAST=DSAST(), gast=GAST()):
+		self.ID = 0 #need to figure out CAS values
+		self.status = 0 # waiting = 0, running = 1, sleeping = 2
+		self.DSAST = DSAST #from LLS
+		self.GAST = gast 
+		self.DPAST = DPAST(size=0, DSAST=self.DSAST)
+		self.prog = CAST(gast=gast)
+		self.threads = [CAST(gast=gast)]  ## need to determine how many CASTS to initialize, maybe more casts are added at runtime. one for each thread
+		self.priority = 0 #influences how much run time it gets 
+		self.stdin = GAST()
+		self.stdout = GAST()
+		self.strerr = GAST()
+		self.DSAST = mapBASTtoDSAST(dsast=self.DSAST, gast=self.GAST)
+		mapDSASTtoDPAST(self.DSAST)
 
 # CH functions that accept a non-DSAST address
 # def readLLS(addr):
