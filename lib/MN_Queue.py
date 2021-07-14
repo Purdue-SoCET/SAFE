@@ -86,12 +86,10 @@ class MN_queue:
     def continuous_read(self):
         # Continuously read the stream and returns any new message as a generator
         while True:
-            print("locked from read")
             self.lock.acquire()
             if self.tail_ptr != self.head_ptr:
                 yield self.read()
             self.lock.release()
-            print("released from read")
 
     def checks_overwrite(self, channel: int) -> None:
         # primitive overwrite warning
@@ -123,12 +121,9 @@ class MN_commons:
 
     def write(self, src: int, dest: int, message, channel: int = SYSTEM_LOW):
         desired_queue = self.total_queue[dest][src]
-        print("locked from write")
         desired_queue.lock.acquire()
-        print("testsetset")
         write_status = desired_queue.write(message,channel)
         desired_queue.lock.release()
-        print("released from write")
         return write_status
 
     # have a queue (list) for messages waiting for response. In read() method have cases to catch responses and mark
