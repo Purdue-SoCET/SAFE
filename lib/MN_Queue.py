@@ -103,7 +103,6 @@ class MN_commons:
     def __init__(self):
         def __create_all_channels() -> list:
             def __create_all_dest(src:int) -> list:
-                #return [list().append(MN_queue()) for dest in range(TOTAL_PARTS) if src != dest]
                 return [list().append(MN_queue()) if src != dest else list().append([]) for dest in range(TOTAL_PARTS)]
             return [__create_all_dest(src) for src in range(TOTAL_PARTS)]
         self.total_queue = __create_all_channels()

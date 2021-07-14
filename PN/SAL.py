@@ -4,10 +4,15 @@ import os
 #LLS maps DSAST
 #DAStable = [] #list of DAS 
 DPASTDSAST = {} # DSAST -> DPAST hash table
-DPAST_process = [] #list of ongoing processes
+DPAST_process = [] #list of ongoing processes 
+#TODO: DPAST_process really is CAST consistening of ongoing DPAST processes
 #TODO: CAST translation table that resides in PN(DP->DS_C) //Adaptation layer?
 #TODO: CAST translation cache that resides in PN(DP->DS_T)
 #TODO: DSAST terminates when all of its associate bast terminates
+
+# process needs data objects. cant be system data objects. heap/stack might be in DPAST
+# if there was not associated tag for stack, it would be hard to map 
+# dpast is like virtual memory, 
 
 WAY_LIMIT = 0# determined by pc
 LARGE_LINE_LIMIT = 0# determined by pc
