@@ -1,6 +1,10 @@
 import random
 
-
+# TODO: hardcoded spec, need to change it to read sysconfig instead
+WAY_LIMIT = 0  # determined by pc
+LARGE_LINE_LIMIT = 0  # determined by pc
+SMALL_LINE_LIMIT = 0  # determined by pc
+INVALID_TRANSLATION = 0x00000000  # 32 bits of zero
 
 class DSAST:
     # NOTE: this DSAST struct represents the entire DSR as described in page 29 of the manual_1y,
@@ -46,6 +50,7 @@ class DSAST:
                 self.offset = address & 0x3ffffffffffff # 50 bits
                 self.dsast = self.index | (self.linelimit << 14) | (self.size << 19) | (self.waylimit << 20)
 
+
 # CH function to map block address to DSAST
 # parameters: 	addr(64-bit value): block address from CH
 # returns:		corresponding dsast that has same offset and index or false if no matching dsast is found
@@ -55,8 +60,6 @@ def mapAddrToDSAST(addr):
         if(dsast.offset == (addr & 0xffffffffff) and dsast.index == (addr & 0xffffff)):
             return dsast
     return False
-
-
 
 
 class DPAST:
@@ -115,7 +118,6 @@ def binary_to_DSAST(binary):
     else:  # large dsast
         index = binary & (0x1ffffff << 40)
         offset = (binary << 32) >> 32
-        inelimit = LARGE_LINE_LIMIT
+        linelimit = LARGE_LINE_LIMIT
     aDPAST = DPAST(index, linelimit, size, WAY_LIMIT, offset)
     return aDPAST
-

@@ -1,17 +1,11 @@
 # SAL layer class model
 import sys
-import os
 import random
 
 sys.path.append("../")
 from lib.MN_Queue import Parts,MN_queue,MN_commons
 from lib.DAST import DSAST, DPAST
-
-
-
-# TODO: CAST translation table that resides in PN(DP->DS_C) //Adaptation layer?
-# TODO: CAST translation cache that resides in PN(DP->DS_T)
-# TODO: DSAST terminates when all of its associate bast terminates
+#from LLS.LLS import mapBASTtoDSAST
 
 WAY_LIMIT = 0  # determined by pc
 LARGE_LINE_LIMIT = 0  # determined by pc
@@ -29,18 +23,17 @@ class SysConfig:
         self.max_socket = max_socket
 
 class ProgramCAST:
-    def __init__(self,gast,thread_counts=1):
+    def __init__(self,thread_counts=1):
         self.sys_config = SysConfig()  # program sysconfig
         self.index = random.getrandbits(20)  # actual CAST is this 20-bit tag
         self.mn_commons = MN_commons() # collection of all mn_queues
-        self.threads = [ThreadCAST() for idx in range(thread_counts)] # list of ongoing threads - start with 1
+        self.threads = [ThreadCAST(self) for idx in range(thread_counts)] # list of ongoing threads - start with 1
         #TODO: thread cast needs gast
         self.thread_ids = [id(thread) for thread in self.threads] # list of ordered thread ids
         self.dpast_to_dsast = {} # dpast to dsast translation table
-        #self.dsast = mapBASTtoDSAST(DSAST(),gast=None)
-        #self.gast = GAST()
         self.dsast = None
-        self.gast = gast
+        self.gast = None
+        self.dpast = None
 
         #SNE features
         self.npast_to_nsast = [] * self.sys_config.max_socket
@@ -49,18 +42,23 @@ class ProgramCAST:
         self.port_PN = 0
 
         #TODO:
+        #self.stdin = None
+        #self.stdout = None
+        #self.strerr = None
+
+    def init_program(self,mapBASTtoDSAST,gast=None):
+    # get the gast dsast info etc.
+        self.dsast = mapBASTtoDSAST(DSAST(),gast=gast)
+        self.gast = gast
+
         #self.stdin = GAST()
         #self.stdout = GAST()
         #self.strerr = GAST()
 
-    #def init_program(self):
-    # get the gast dsast info etc.
-
-    def read_port(self):
+    def read_port(self,data):
         self.port_PN = data
 
-
-    def write_port(self):
+    def write_port(self,data):
         self.port_PN = data
 
     def get_threads(self) -> list:
@@ -71,7 +69,7 @@ class ProgramCAST:
 
 
 class ThreadCAST:
-    def __init__(self):
+    def __init__(self,ProgramCAST):
         self.ID = id(self)  # need clearification on id
         self.status = 0  # waiting = 0, running = 1, sleeping = 2
         self.PC = None
@@ -81,6 +79,8 @@ class ThreadCAST:
         #self.dsast = DSAST()
         self.gast = None
         self.dsast = None
+        self.dpast = None
+        self.p_cast = ProgramCAST
 
         # look into thread system notification
 

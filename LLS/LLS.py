@@ -7,7 +7,10 @@ import shutil
 # import typing
 #import ctypes
 #from multiprocessing import Queue
-
+# import base64
+# import hashlib
+# from Crypto import Random
+# from Crypto.Cipher import AES
 
 sys.path.append('../')
 from lib.MN_Queue import MN_queue, Message, MN_commons, Parts
@@ -15,15 +18,9 @@ from lib.DAST import DPAST, DSAST
 from lib.CAST import ThreadCAST, ProgramCAST
 # from PN.PN import run
 
-
-# import base64
-# import hashlib
-# from Crypto import Random
-# from Crypto.Cipher import AES
-
-gastTable = {} # Hash table, bast to gast mapping, not in use as probably does not exist, there should probably only be 
+gastTable = {} # Hash table, bast to gast mapping, not in use as probably does not exist, there should probably only be
                # a mapping from GAST to BAST, not the inverse
-oitTable = [] # could be a tree indexed by lookup uses, but functionally is just a list 
+oitTable = [] # could be a tree indexed by lookup uses, but functionally is just a list
 oatTable = {} # Hash table, index should be OIT's value
 bastTable = {} # List of bast, key: GAST key and domain, value: BAST
 bastAvail = [] # list of available bast file names
@@ -35,13 +32,12 @@ fpList = {} # Lists file pointers from BASTS, where the index is the BAST value
 # in theory, all data objects are stored linearly and accessed through tuples (DATA OBJ, ADDRESS IN HDD), there are no 'files'
 files = []
 
+
 OK_TO_UNMAP 	= 0x1
 NOT_OK_TO_UNMAP = 0x2
 NEW_CACHE 		= 0x3
 CACHE_REQUEST	= 0x4
 GAST_REQUEST 	= 0x5
-
-MN = MN_commons()
 
 # ch-lls communication only receives 14bits (28 bits shifted by 14) mapping to a 16k cache line
 # LLS deals with requests for 16k only
@@ -79,48 +75,48 @@ def main():
     print("allocated GAST:           ", newgast)
     bastTable[(newgast.domain, newgast.key)].writeToFile("abcde", 0)
     print("mapped BAST:              ", bastTable[(newgast.domain, newgast.key)])
-    p_cast = ProgramCAST(gast=newgast)
+    p_cast = ProgramCAST()
+    p_cast.init_program(mapBASTtoDSAST,newgast)
     process = p_cast.get_threads()[0]  # first threadCAST
     #TODO: manual mapping to automatic mapping
-    process.gast = GAST()
-    process.DSAST = mapBASTtoDSAST(dsast=DSAST,gast=process.gast)
-    print("process' allocated DSAST: ", process.DSAST)
+    print("process' allocated DSAST: ", p_cast.dsast)
     print("DSAST -> BAST table:      ", sastBast)
-    print("contents of BAST:         ", sastBast[process.DSAST].readFromFile())
+    print("contents of BAST:         ", sastBast[p_cast.dsast].readFromFile())
 
     sb.close()
 
-def _test_run_prog():
-    newgast = GAST()
-    abast = bastTable[(newgast.domain, newgast.key)]
-    shutil.copyfile("PN/meminit.hex", ".b/" + abast.getfname)
-    run(newgast)
+#def _test_run_prog():
+#    newgast = GAST()
+#    abast = bastTable[(newgast.domain, newgast.key)]
+#    shutil.copyfile("PN/meminit.hex", ".b/" + abast.getfname)
+#    run(newgast)
 
 
-def _test_mnq():
-    # CAST is equivalent to proc object in legacy systems
-    global OK_TO_UNMAP
-    global NOT_OK_TO_UNMAP
-    global NEW_CACHE
-    global CACHE_REQUEST
-    global GAST_REQUEST
-    msgLLS = None
-    msgCH = None
-    
-    # eventually, MNQ read occur in loop
-    msgLLS = MN.read(src=Parts.LLS, dest=Parts.CH)
-    msgCH = MN.read(src=Parts.CH, dest=Parts.LLS)
-    print("msgLLS ", msgLLS, "\nmsgCH ", msgCH)
-
-    gastrequest = Message(msg=GAST_REQUEST, data_size=0, data=None, need_response=True)
-    MN.write(src=Parts.CH, dest=Parts.LLS, msg=gastrequest)
-    msgLLS = MN.read(src=Parts.LLS, dest=Parts.CH)
-    msgCH = MN.read(src=Parts.CH, dest=Parts.LLS)
-    if(msgLLS != None):
-        if(msgLLS.msg == GAST_REQUEST):
-            pass
-        #elif(msgLLS == CACHE_REQUEST):
-    print("msgLLS ", msgLLS, "\nmsgCH ", msgCH)
+#def _test_mnq():
+#    # CAST is equivalent to proc object in legacy systems
+#    global OK_TO_UNMAP
+#    global NOT_OK_TO_UNMAP
+#    global NEW_CACHE
+#    global CACHE_REQUEST
+#    global GAST_REQUEST
+#    msgLLS = None
+#    msgCH = None
+#
+#    # Sen Note: MN_QUEUE main function has an example of how to read it continuously
+#    # eventually, MNQ read occur in loop
+#    msgLLS = MN.read(src=Parts.LLS, dest=Parts.CH)
+#    msgCH = MN.read(src=Parts.CH, dest=Parts.LLS)
+#    print("msgLLS ", msgLLS, "\nmsgCH ", msgCH)
+#
+#    gastrequest = Message(msg=GAST_REQUEST, data_size=0, data=None, need_response=True)
+#    MN.write(src=Parts.CH, dest=Parts.LLS, msg=gastrequest)
+#    msgLLS = MN.read(src=Parts.LLS, dest=Parts.CH)
+#    msgCH = MN.read(src=Parts.CH, dest=Parts.LLS)
+#    if(msgLLS != None):
+#        if(msgLLS.msg == GAST_REQUEST):
+#            pass
+#        #elif(msgLLS == CACHE_REQUEST):
+#    print("msgLLS ", msgLLS, "\nmsgCH ", msgCH)
 
 
 def _test_bast_persistence():	
@@ -214,6 +210,9 @@ class File:
         # self.block = None  # where in disk is it stored
         # self.translations = []  # list of translations to other blocks
 
+# init global superblock
+sb = Superblock()
+
 class GAST:
     global bastTable
     def __init__(self, permissions=bytes(2), encrypt=None, addr=None):
@@ -247,11 +246,6 @@ class GAST:
 
     def free(self):
         del bastTable[(self.domain, self.key)]
-
-    # PMU function that requests a gast, WIP
-    def gastRequest(dsast):
-        # randomly pick a gast, map it to the dsast's bast
-        pass
 
 
 class BAST:
@@ -292,7 +286,7 @@ class BAST:
     # if offset is larger, create space for the write
     def writeToFile(self, value, offset=0):
         #with open("./b/"+str(hex(self.value)), 'w') as file:
-        with open(os.getcwd() + str(hex(self.value)), 'w') as file:
+        with open(os.path.join(os.getcwd(),"b",str(hex(self.value)) ), 'w') as file:
             # if we get an offset larger than file size, pad file to fit content
             fsize = file.seek(0, 2) - file.seek(0, 0)
             # if offset is larger than file size, pad out file with 0 until offset
@@ -306,7 +300,7 @@ class BAST:
     # if offset is larger, raise exception, send back msg to PMU that the process is trying to do funny stuff
     def readFromFile(self, length=64, offset=0):
         #with open("./b/"+str(hex(self.value)), 'r') as file:
-        with open(os.getcwd() + str(hex(self.value)), 'r') as file:
+        with open(os.path.join(os.getcwd(),"b",str(hex(self.value))) , 'r') as file:
             # check max offset
             file.seek(0, 2) # 2 == SEEK_END
             max_off = file.tell()
@@ -348,7 +342,50 @@ class BAST:
                 sastBast.pop(sast.dsast)
                 return
         print("Did not find dsast to bast mapping when retiring BAST")
-        return 
+        return
+
+class OIT:
+    def __init__(self, permissions):
+        global oitTable
+        # first 16 bits of domain indicate permissions and last 16 bits are actual domain.
+        self.permissions = permissions
+        # establish domains, not random
+        # for now, 2 domains: code or data
+        self.domain = random.getrandbits(16)
+        self.key = random.getrandbits(448)
+        self.value = bytes(4)  # 32 bit representation of BAST
+        # need to check if key does not exist in domain before addying entry to hash table
+        # not sure if this is what goes into the oitTable...
+        if (self.domain, self.value) not in oitTable:
+            oitTable.append((self.domain, self.value))
+
+
+# Local function to fetch superblock from disk, written using the Superblock.close() method.
+# Writes directly to global sb variable. Should be called during initialization of system
+# NOTE: moved from Superblock method to standalone function to fix some problems with variable locality
+def openFS():
+    if os.path.isfile("b/superblock") and os.path.getsize("b/superblock") > 0:
+        with open("b/superblock", "rb") as file:
+            global files
+            global bastTable
+            global bastAvail
+            global bastCnt
+            global bastList
+            global sb
+            unpickler = pickle.Unpickler(file)
+            sb = unpickler.load()
+            files = sb.files
+            bastTable = sb.gastbast
+            bastAvail = sb.bastavail
+            bastCnt = sb.bastcnt
+            bastList = sb.bastlist
+            sb.valid = True
+            return True
+    else:
+        os.mkdir(os.getcwd() + "/b/")
+        print("Could not find existing superblock in disk!")
+        return False
+
 
 # local function to get BAST value from DSAST key in dict
 # parameters: 	dsast(DSAST()): DSAST to be unmapped
@@ -356,6 +393,7 @@ class BAST:
 def getBASTfromDSAST(dsast):
     global sastBast
     return sastBast[dsast]
+
 
 # PMU function to map dsast to a bast
 # parameters: 	dsast(DSAST()): DSAST to be mapped
@@ -385,51 +423,14 @@ def mapBASTtoDSAST(dsast, gast=None):
     return dsast
 
 
-class OIT:
-    def __init__(self, permissions):
-        global oitTable
-        # first 16 bits of domain indicate permissions and last 16 bits are actual domain.
-        self.permissions = permissions
-        # establish domains, not random
-        # for now, 2 domains: code or data
-        self.domain = random.getrandbits(16) 
-        self.key = random.getrandbits(448)
-        self.value = bytes(4) # 32 bit representation of BAST
-        # need to check if key does not exist in domain before addying entry to hash table
-        # not sure if this is what goes into the oitTable...
-        if (self.domain, self.value) not in oitTable:
-            oitTable.append((self.domain, self.value))
+# PMU function that requests a gast, WIP
+def gastRequest(dsast):
+    # randomly pick a gast, map it to the dsast's bast
+    pass
 
-# init global superblock
-sb = Superblock()
-
-# Local function to fetch superblock from disk, written using the Superblock.close() method. 
-# Writes directly to global sb variable. Should be called during initialization of system
-# NOTE: moved from Superblock method to standalone function to fix some problems with variable locality
-def openFS():
-    if os.path.isfile("b/superblock") and os.path.getsize("b/superblock") > 0:
-        with open("b/superblock", "rb") as file:
-            global files
-            global bastTable
-            global bastAvail
-            global bastCnt
-            global bastList
-            global sb
-            unpickler = pickle.Unpickler(file)
-            sb = unpickler.load()
-            files = sb.files
-            bastTable = sb.gastbast
-            bastAvail = sb.bastavail
-            bastCnt = sb.bastcnt
-            bastList = sb.bastlist
-            sb.valid = True
-            return True
-    else:
-        print("Could not find existing superblock in disk!")
-        return False
 
 # FILE OPERATION FUNCTIONS
-def openFile(dsast, gast):
+def openFile(dsast, gast=None):
     # TODO: check if file already exists, if not, do createFile
     # this function will call mapBASTtoDSAST
     
@@ -557,8 +558,6 @@ def writeLLS(dsast, writeData):
     print("writeLLS: Writing {} to {}\n".format(dsast.dsast, writeData))
     sastBast[adsast.dsast].writeToFile(writeData, dsast.offset)
 
-
-
 # CH functions that accept a non-DSAST address
 # def readLLS(addr):
 # 	global sastBast
@@ -629,13 +628,13 @@ def writeLLS(dsast, writeData):
 
 
 if __name__ == '__main__':
-    # global sastBast
+
     main()
+
+    # global sastBast
     # for i in range(0,10):
     # 	name = "gast"+str(i)
     # 	name = GAST()
-
-    # print(bastTable)
 
     # dsast = DSAST()
     # gastlist = [gast for gast in bastTable]
