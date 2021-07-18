@@ -14,4 +14,9 @@ def run(gast):
     # proc = createDPAST(gast)
     # receive DPAST back and run it
     bast = bastTable[(gast.domain, gast.key)]
-    simulator.main("../../LLS/b/" + bast.getfname)
+    simulator.main("../../LLS/b/" + bast.getfname())
+
+    # which type of address space goes into PN
+    # why does the PN need a DPSAT
+    # what is the use of the DPAST? what is its relation to the process object in the PMU
+    # 
