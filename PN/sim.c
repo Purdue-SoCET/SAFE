@@ -549,36 +549,36 @@ u_int8 getByte (u_int32 addr)
   {
     errorHandler ("The program has exceeded the allowable address space in getByte.\n");
   }
-	printf("A");
+	//printf("A");
   /* get byte */
-  //if (mainmem[addr] == NULL)
-  //{
-  //  return 0;
-  //}
+  if (mainmem[addr] == NULL)
+  {
+    return 0;
+  }
   //printf("A");
-  FILE * send_L1_to_mem;
-  send_L1_to_mem = fopen("send_L1_to_mem","w");
-  while (send_L1_to_mem == NULL){
-	send_L1_to_mem = fopen("send_L1_to_mem", "w");
-  }
-  sleep(1);
-  printf("%d addr",addr);
-  fprintf(send_L1_to_mem, "addr: %d", addr);
-  fclose(send_L1_to_mem);
-  FILE * recv_mem_to_L1;
-  int val;
+  //FILE * send_L1_to_mem;
+  //send_L1_to_mem = fopen("send_L1_to_mem","w");
+  //while (send_L1_to_mem == NULL){
+//	send_L1_to_mem = fopen("send_L1_to_mem", "w");
+  //}
+  //sleep(1);
+  //printf("%d addr",addr);
+  //fprintf(send_L1_to_mem, "addr: %d", addr);
+  //fclose(send_L1_to_mem);
+  //FILE * recv_mem_to_L1;
+  //int val;
   //printf("n");
-  recv_mem_to_L1 = fopen("recv_mem_to_L1", "r");
-  while (recv_mem_to_L1 == NULL){
-	recv_mem_to_L1 = fopen("recv_mem_to_L1", "r");
-  }
+  //recv_mem_to_L1 = fopen("recv_mem_to_L1", "r");
+  //while (recv_mem_to_L1 == NULL){
+	//recv_mem_to_L1 = fopen("recv_mem_to_L1", "r");
+  //}
   //sleep(4);
-  fscanf(recv_mem_to_L1, "val: %d", &val);
-  fclose(recv_mem_to_L1);
-  printf("SIM addr: %d val: %d", addr, val);
-  return val; 
+  //fscanf(recv_mem_to_L1, "val: %d", &val);
+  //fclose(recv_mem_to_L1);
+  //printf("SIM addr: %d val: %d", addr, val);
+  //return val; 
   /* return byte */
-  //return *(mainmem[addr]);
+  return *(mainmem[addr]);
 }
 
 /* get a word from memory */
@@ -632,14 +632,14 @@ void setByte (u_int32 addr, u_int8 val)
   *(mainmem[addr]) = val;
   //send addr and val using FILE based message passing
   //spin lock
-  FILE * send_L1_to_mem;
-  send_L1_to_mem = fopen("sw_ask_L1_to_mem", "w");
-  while (send_L1_to_mem == NULL){
-  	send_L1_to_mem = fopen("sw_ask_L1_to_mem", "w");
-  }
+  //FILE * send_L1_to_mem;
+  //send_L1_to_mem = fopen("sw_ask_L1_to_mem", "w");
+  //while (send_L1_to_mem == NULL){
+  //	send_L1_to_mem = fopen("sw_ask_L1_to_mem", "w");
+  //}
   //send_L1_to_mem_lock = fopen("send_L1_to_mem_lock", "rb");
-  fprintf(send_L1_to_mem, "addr: %d val: %d", addr, val);
-  fclose(send_L1_to_mem);
+  //fprintf(send_L1_to_mem, "addr: %d val: %d", addr, val);
+  //fclose(send_L1_to_mem);
 }
 
 /* set a word of memory to a value */
@@ -659,23 +659,23 @@ void setWord (Machine *m, u_int32 addr, u_int32 val)
    
     addr &= 0xfffffffc;
   }
-  FILE * fp_w = fopen("value_r","wb");
-  FILE * fl_w = fopen("lock_r","wb");
+  //FILE * fp_w = fopen("value_r","wb");
+  //FILE * fl_w = fopen("lock_r","wb");
  
   u_int8 * b_val;
-  fscanf(fp_w,"%d",1);
-  fp_w.close();
+  //fscanf(fp_w,"%d",1);
+  //fp_w.close();
   for (i = WORD_SIZE-1; i >= 0; i--)
   {
 
-	*b_val = ((val >> (i*8)) & 0x000000ff)
-    fwrite(b_val, sizeof(u_int8), addr + (WORD_SIZE-1-i), fp_w);
-	//setByte(addr + (WORD_SIZE-1-i), ((val >> (i*8)) & 0x000000ff));
+	*b_val = ((val >> (i*8)) & 0x000000ff);
+    //fwrite(b_val, sizeof(u_int8), addr + (WORD_SIZE-1-i), fp_w);
+	setByte(addr + (WORD_SIZE-1-i), ((val >> (i*8)) & 0x000000ff));
   }
-  FILE * fl_w = fopen("lock_r","wb");
-  fscanf(fl_w,"%d",1);
-  fl_w.close();
-  fp_w.close();
+  //FILE * fl_w = fopen("lock_r","wb");
+  //fscanf(fl_w,"%d",1);
+  //fl_w.close();
+  //fp_w.close();
 
   if (m->trace)
   {
