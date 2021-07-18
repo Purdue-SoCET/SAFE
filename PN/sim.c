@@ -600,7 +600,17 @@ u_int32 getWord (u_int32 addr)
   {
     word[i] = getByte(addr + i);
   }
-
+  for (int i = 0; i < MEMSPACE_SIZE; i++){
+	if (mainmem[i] != NULL)
+  	{
+		if (i % 4 == 0) printf("\n");
+  		printf("%04x ",*mainmem[i]);
+	}
+	else{
+	    //printf("NULL");
+	}
+  }
+  //printf("\n");
   /* pack bytes bigendian and return */
   return ((word[0] << 24) | (word[1] << 16) | (word[2] << 8) | word[3]);
 }
@@ -630,6 +640,7 @@ void setByte (u_int32 addr, u_int8 val)
   }
   /* set the value in memory */
   *(mainmem[addr]) = val;
+  //printf("\n");
   //send addr and val using FILE based message passing
   //spin lock
   //FILE * send_L1_to_mem;
@@ -715,6 +726,17 @@ void setWord (Machine *m, u_int32 addr, u_int32 val)
   {
     printf ("\t[%08X] <-- %08X\n", addr, val);
   }
+  for (int i = 0; i < MEMSPACE_SIZE; i++){
+	if (mainmem[i] != NULL)
+  	{
+		if (i % 4 == 0) printf("\n");
+  		printf("%04x ",*mainmem[i]);
+	}
+	else{
+	    //printf("NULL ");
+	}
+  }
+  //printf("\n");
 }
 
 /* get a register value from a machine */
