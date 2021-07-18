@@ -11,8 +11,8 @@
 # 8 + 3 bytes for data (3 from header)
 from threading import Lock
 from enum import Enum
-import queue
 import time
+#import queue
 
 
 SIZE_QUEUE = 256
@@ -55,10 +55,12 @@ class MN_queue:
         self.tail_ptr = [0, 256, 512, 768]
         self.lock = Lock()  # lock for queue
 
-    def write(self, message: Message, channel: int = SYSTEM_LOW):
-        # default channel system low
-        # return True for successful write, False for unsuccessful write
-        # Do not use this func directly as it's not thread safe, use MN_Commons instead
+
+    # write function that writes message into the stream buffer
+    # parameter: Message object and channels
+    # return: True for successful write, False for unsuccessful write
+    # Note: Do not use this func directly as it's not thread safe, use MN_Commons instead
+    def write(self, message: Message, channel: int= SYSTEM_LOW):
         if self.checks_overwrite(channel):
             return False
         tail_value = self.tail_ptr[channel]
@@ -66,33 +68,28 @@ class MN_queue:
         self.tail_ptr[channel] = self.ring_counter(tail_value, channel)
         return True
 
+    # read function that read message from the stream buffer
+    # return: Return the message when a new one is found, return None when not found.
+    # Note: Do not use this func directly as it's not thread safe, use MN_Commons instead
     def read(self):
-        # primitive operations which includes test
-        # Return the message when a new one is found, return None when not found.
-        # Do not use this func directly as it's not thread safe, use MN_Commons instead
+        if self.tail_ptr == self.head_ptr:
+            return None
         for channel,head_value in enumerate(self.head_ptr):
             if head_value != self.tail_ptr[channel]:
                 msg = self.stream[head_value] ## equivalent to tail_ptr - 1
                 self.head_ptr[channel] = self.ring_counter(head_value, channel)
                 return msg
-        return None
 
-
+    # Simple ring counter that counts up by one within each channel's perspective range
+    # parameter: pointer index, and channel number
+    # return: pointer index + 1
     def ring_counter(self, ptr: int, channel: int) -> int:
-        # counts upward by one within each channel's perspective range
         return (ptr + 1) % SIZE_QUEUE + (channel * SIZE_QUEUE)
 
 
-    def continuous_read(self):
-        # Continuously read the stream and returns any new message as a generator
-        while True:
-            self.lock.acquire()
-            if self.tail_ptr != self.head_ptr:
-                yield self.read()
-            self.lock.release()
-
-    def checks_overwrite(self, channel: int) -> None:
-        # primitive overwrite warning
+    # Checks for any buffer overflow
+    # return: True when overflow happens, False if not
+    def checks_overwrite(self, channel: int) -> bool:
         curr_msg = self.stream[self.tail_ptr[channel]]
         if type(curr_msg) == Message and curr_msg.is_ack == False and curr_msg.is_read == False:
             return True
@@ -101,16 +98,18 @@ class MN_queue:
 
 
 class MN_commons:
-    # @staticmethod
+    #@staticmethod
     def __init__(self):
+        # create a 2-d list of all mn_queues except for when src == dest
         def __create_all_channels() -> list:
             __create_all_dest = lambda src : [MN_queue() if src != dest else None for dest in range(TOTAL_PARTS)]
             return [__create_all_dest(src) for src in range(TOTAL_PARTS)]
 
         self.total_queue = __create_all_channels()
-        ## self.total_queue[in the view of (LLS/PMU/CH...)][message from this component]
 
-
+    # thread safe read
+    # input: src: the part # of the receiving component, dest: the part # of the sending component
+    # return: Message obj
     def read(self, src: int, dest: int):
         desired_queue = self.total_queue[src][dest]
         desired_queue.lock.acquire()
@@ -118,7 +117,9 @@ class MN_commons:
         desired_queue.lock.release()
         return message
 
-
+    # thread safe write
+    # input: src: the part # of the sending component, dest: the part # of the receiving component
+    # return: True for successful write, False otherwise
     def write(self, src: int, dest: int, message, channel: int = SYSTEM_LOW):
         desired_queue = self.total_queue[dest][src]
         desired_queue.lock.acquire()
@@ -126,20 +127,32 @@ class MN_commons:
         desired_queue.lock.release()
         return write_status
 
-    # have a queue (list) for messages waiting for response. In read() method have cases to catch responses and mark
-    # waiting messages in the list as read (pop them out of the list and return to original function)
+    # continuous read until message updates, should be used in a separate thread
+    # input: same as read()
+    # return: a generator that can be used to iterate in a for loop
     def wait_msg(self, src: int, dest: int):
-        # Only returns msg when is new message is found
-        yield from self.total_queue[src][dest].continuous_read()
+        while True:
+            message = self.read(src,dest)
+            if message is not None:
+                yield message
 
+    # continuous read until message updates, should be used in a separate thread
+    # input: same as read()
+    # return: a generator that has the sender's component part no. and the message
+    def wait_msg_for_all(self, src:int):
+        while True:
+            for idx in range(TOTAL_PARTS):
+                if idx == src:
+                    continue
+                message = self.read(src,idx)
+                if message is not None:
+                    yield idx,message
 
-    #def wait_msg_for_all(self, src:int):
-
+    #TODO: Synchronized queue for new messages?
     # def response(self,src,dest):
 
 if __name__ == '__main__':
     test_commons = MN_commons()
-
     ## Fetch data
     test_commons.write(Parts.PMU.value, Parts.LLS.value, Message(data="Low priority data"), channel=USER_LOW)
     test_commons.write(Parts.PMU.value, Parts.LLS.value, Message(data="Random Data1"))
@@ -151,24 +164,22 @@ if __name__ == '__main__':
     for msg in test_commons.wait_msg(Parts.LLS.value,Parts.PMU.value):
         print(msg.data)
         # Do whatever we want with the message
-        #time.sleep(2)
+        time.sleep(2)
         idx += 1
         if (idx > 5):
-            test_commons.total_queue[Parts.LLS.value][Parts.PMU.value].lock.release()
             break
 
     # communication with response -- through communication within mn_queue
     test_commons.write(Parts.PMU.value, Parts.LLS.value, Message(data="Can I have your attention?",need_response=True))
     for msg in test_commons.wait_msg(Parts.LLS.value,Parts.PMU.value):
-
-        if msg.need_response == True:
+        if msg.need_response is True:
             print(msg.data)
             msg.data = "Yes what can I do for you?"
             test_commons.write(Parts.LLS.value,Parts.PMU.value,msg)
             break
 
     for msg in test_commons.wait_msg(Parts.PMU.value,Parts.LLS.value):
-        if msg.need_response == True:
+        if msg.need_response is True:
             print(msg.data)
             msg.data = "Thank you"
             msg.need_response = False
