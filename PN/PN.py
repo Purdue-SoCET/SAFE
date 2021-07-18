@@ -18,5 +18,3 @@ def run(gast):
 
     # which type of address space goes into PN
     # why does the PN need a DPSAT
-    # what is the use of the DPAST? what is its relation to the process object in the PMU
-    # 
