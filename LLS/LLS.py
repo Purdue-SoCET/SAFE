@@ -76,8 +76,7 @@ def main():
     print("allocated GAST:           ", newgast)
     bastTable[(newgast.domain, newgast.key)].writeToFile("abcde", 0)
     print("mapped BAST:              ", bastTable[(newgast.domain, newgast.key)])
-    p_cast = ProgramCAST()
-    p_cast.init_program(mapBASTtoDSAST,newgast)
+    p_cast = ProgramCAST(mapBASTtoDSAST,gast=newgast)
     process = p_cast.get_threads()[0]  # first threadCAST
     #TODO: manual mapping to automatic mapping
     print("process' allocated DSAST: ", p_cast.dsast)
