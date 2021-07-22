@@ -23,7 +23,8 @@ class SysConfig:
         self.max_socket = max_socket
 
 class ProgramCAST:
-    def __init__(self,thread_counts=1):
+    ## Remember to pass in the function "mapBASTtoDSAST" when init ProgramCAST
+    def __init__(self,mapBASTtoDSAST,thread_counts=1,gast=None):
         self.sys_config = SysConfig()  # program sysconfig
         self.index = random.getrandbits(20)  # actual CAST is this 20-bit tag
         self.mn_commons = MN_commons() # collection of all mn_queues
@@ -31,8 +32,9 @@ class ProgramCAST:
         #TODO: thread cast needs gast
         self.thread_ids = [id(thread) for thread in self.threads] # list of ordered thread ids
         self.dpast_to_dsast = {} # dpast to dsast translation table
-        self.dsast = None
-        self.gast = None
+        self.dsast = mapBASTtoDSAST(DSAST(),gast=gast)
+        self.gast = gast
+        #TODO: Generate a dpast associated with the particular dsast
         self.dpast = None
 
         #SNE features
@@ -42,15 +44,6 @@ class ProgramCAST:
         self.port_PN = 0
 
         #TODO:
-        #self.stdin = None
-        #self.stdout = None
-        #self.strerr = None
-
-    def init_program(self,mapBASTtoDSAST,gast=None):
-    # get the gast dsast info etc.
-        self.dsast = mapBASTtoDSAST(DSAST(),gast=gast)
-        self.gast = gast
-
         #self.stdin = GAST()
         #self.stdout = GAST()
         #self.strerr = GAST()
