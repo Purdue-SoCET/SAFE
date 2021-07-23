@@ -19,6 +19,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h> 
 #include <unistd.h>
+#include <sys/file.h>
 
 /* check to see if we have inline */
 #if !defined __GNUC__
@@ -556,17 +557,18 @@ u_int8 getByte (u_int32 addr)
   }
   FILE * send_L1_to_mem;
   send_L1_to_mem = fopen("send_L1_to_mem","w");
-  while(!flock(fileno(send_L1_to_mem)), LOCK_EX));
+  while(!flock(send_L1_to_mem, LOCK_EX));
   fprintf(send_L1_to_mem, "addr: %d", addr);
-  while(!flock(fileno(send_L1_to_mem)), LOCK_UN));
+  while(!flock(send_L1_to_mem, LOCK_UN));
   fclose(send_L1_to_mem);
   FILE * recv_mem_to_L1;
   recv_mem_to_L1 = fopen("recv_mem_to_L1", "r");
-  while(!flock(fd, LOCK_EX));
-  fscanf(recv_mem_to_L1, "val: %d", &val);
-  flock(fd, LOCK_UN);
+  while(!flock(recv_mem_to_L1, LOCK_EX));
+  int val1;
+  fscanf(recv_mem_to_L1, "val: %d", &val1);
+  while(!flock(recv_mem_to_L1, LOCK_UN));
   fclose(recv_mem_to_L1);
-  return val; 
+  return val1; 
   /* return byte */
 }
 
