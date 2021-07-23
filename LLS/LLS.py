@@ -21,7 +21,7 @@ from PN.SAL import DPAST, mapDSASTtoDPAST
 # from Crypto import Random
 # from Crypto.Cipher import AES
 
-gastTable = {} # Hash table, bast to gast mapping, not in use as probably does not exist, there should probably only be 
+# gastTable = {} # Hash table, bast to gast mapping, not in use as probably does not exist, there should probably only be 
                # a mapping from GAST to BAST, not the inverse
 oitTable = [] # could be a tree indexed by lookup uses, but functionally is just a list 
 oatTable = {} # Hash table, index should be OIT's value
@@ -211,7 +211,7 @@ class File:
 
 class GAST:
     global bastTable
-    def __init__(self, permissions=bytes(2), encrypt=None, addr=None):
+    def __init__(self, permissions=bytes(2), encrypt=None, addr=None, bast=None):
         # permissions: permissions for given GAST, are the first half of the domain
         # encrypt: is a flag for whether or not to encrypt the GAST
         # addr: is the location where the GAST's data will be stored,
@@ -222,7 +222,10 @@ class GAST:
         self.permissions = aOIT.permissions
         self.domain = aOIT.domain
         self.key = aOIT.key
-        aBAST = BAST() # address for tagged data
+        if(bast == None):
+            aBAST = BAST() 
+        else:
+            aBAST = bast
         bastTable[(self.domain, self.key)] = aBAST
 
         # if(encrypt):
@@ -237,7 +240,6 @@ class GAST:
     def duplicate(self):
         newGAST = GAST(permissions=self.permissions)
         bastTable[(newGAST.domain, newGAST.key)] = bastTable[(self.domain, self.key)]
-
         return newGAST
 
     def free(self):
@@ -457,14 +459,22 @@ def mapBASTtoDSAST(dsast, gast=None):
         if(bast == aBast or sast == dsast): # already mapped
             return sast
 
-    #FIXME: make consistent use of dsast.dsast or the object
     sastBast[dsast] = aBast
     return dsast
 
-# PMU function that requests a gast, WIP
+# PMU function that requests a gast
+# parameters: 	dsast(DSAST()): DSAST to be mapped to a GAST
+# returns:		GAST(): new GAST mapped to inputted DSAST and a corresponding BAST
 def gastRequest(dsast):
-    # randomly pick a gast, map it to the dsast's bast
-    pass
+    # check if given dsast already has a BAST mapping
+    if(dsast in sastBast.keys()):
+        # if it does, create new gast referencing BAST mapped to DSAST
+        newgast = GAST(bast=sastBast[dsast])
+    else:
+        # else, get a new GAST->BAST mapping
+        newgast = GAST()
+        mapBASTtoDSAST(dsast=dsast, gast=newgast)
+    return newgast
 
 # FILE OPERATION FUNCTIONS
 def openFile(dsast, gast):
@@ -549,7 +559,7 @@ def sendMsgRetire():
                       # message code when we figure out the protocol. for now assume 0x1 is retire request
     return
 
-# dummy function that waits for CH to respond back and acknowledgement
+# TODO: dummy function that waits for CH to respond back and acknowledgement 
 # need to rethink how we wait for acknowledgement from CH. In the current MN model, 
 # waiting for the ACK would lead the queue to be read even if there isnt any message
 # as well as if the first message does not correspond to the ACK
@@ -626,25 +636,6 @@ class Proc:
 		self.strerr = GAST()
 		self.DSAST = mapBASTtoDSAST(dsast=self.DSAST, gast=self.GAST)
 		mapDSASTtoDPAST(self.DSAST)
-
-# CH functions that accept a non-DSAST address
-# def readLLS(addr):
-# 	global sastBast
-# 	# check if dsast exists
-# 	for dsast, bast in sastBast.items():
-# 		if(dsast.offset == addr):
-# 			return sastBast[dsast].readFromFile(dsast.offset)
-# 	return False
-    
-# def writeLLS(addr, writeData):
-# 	global sastBast
-# 	dsast = mapAddrToDSAST()
-# 	if(dsast == False): # could not find corresponding dsast with addr
-# 		dsast = mapBASTtoDSAST(dsast)
-# 		dsast.offset = addr
-# 	return sastBast[dsast].writeToFile(writeData, dsast.offset)
-    
-
 
 # operations for CH
 # read, write, write through (when L5 writes data to the LLS and line becomes clean in the L5, for the LLS it looks the same as write),
