@@ -1,3 +1,4 @@
+import fcntl
 class L1cache:
     def __init__(self, cache_size, block_size):
         self.block_size = block_size #6
@@ -300,6 +301,20 @@ def main():
     global LLS_cache
     L1_cache.put(0x11111,230) #Do testing # Generate random address #Add another core # Generate rand addr #  
     L1_cache.put(0x00001,245)
+	"""
+	while (True):
+		f = open("send_L1_to_mem", "r")
+		fcntl.flock(f, fcntl.LOCK_EX)
+		addr = int(f.readlines()[6:])
+		value = L1_cache.get(addr)
+		f.close()
+		fcntl.flock(f, fcntl.LOCK_UN)
+		f = open("recv_L1_to_mem", "w")
+		fcntl.flock(f, fcntl.LOCK_EX)
+		f.write("val"+str(value))
+		fcntl.flock(f, fcntl.LOCK_UN)
+		f.close()
+	"""
     print(L1_cache.get(0x11111))
     print(L1_cache.get(0xFFF23124101))
     print(L1_cache.get(0x1EF2312401))
