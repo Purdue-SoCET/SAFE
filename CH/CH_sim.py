@@ -268,6 +268,60 @@ class L5cache:
     def hit_rate(self):
         print(" L5 Hit Rate = ", self.L5hits/(self.L5hits+self.L5miss))
 
+class fake_cache:
+    def __init__(self, cache_size, block_size):
+        self.block_size = block_size #6
+        self.cache_size = cache_size #12
+        self.cache_mask = (1 << self.cache_size) - 1
+        #self.tag = [0 for x in range((1 << self.cache_size))]
+        self.line_tag = [0] * (1 << self.cache_size)
+        self.tag_offset = self.cache_size + self.block_size
+        #self.data = [0 for x in range((1 << self.cache_size))]
+		fp = open('0x0','r')
+		self.line_data = [int('0x'+line.rstrip(),base=16) for line in fp.readlines()]
+        #self.line_data = #[0] * (1 << self.cache_size)
+        self.line_state = [0] * (1 << self.cache_size)
+        self.L5hits = 0 
+        self.L5miss = 0
+    def index(self, addr):
+        return (addr >> self.block_size) & self.cache_mask
+    
+    def lookup(self, addr):
+        idx = self.index(addr) #(addr >> cache_line_size) & cache_mask
+        print("Look up in L5 cache at {} for address {}".format(idx, hex(addr)))
+        return (addr >> self.tag_offset) == self.line_tag[idx]
+    
+    def replace(self,addr):
+        x = self.index(addr)
+        if(self.line_state[x] == 1):
+            LLS_cache.put(line_tag[x],line_data[x])  
+            self.line_state[x] = 0    
+        #print("Replace function ", self.index(addr))
+        self.line_data[self.index(addr)] = LLS_cache.get(addr)
+        self.line_tag[self.index(addr)] = addr >> self.tag_offset
+        
+    def get(self, addr):
+        #if(not self.lookup(addr)):
+        #   print("It's a L5 miss")
+        #   self.L5miss += 1  
+        #   self.replace(addr) 
+        #else:
+        print("It's a L5 hit")
+        self.L5hits += 1              
+        return self.line_data[self.index(addr)]
+        
+    def put(self,addr,data):
+        self.addr = addr
+        #self.data = data
+        if not self.lookup(self.addr):
+           print("It's a L5 write miss in put")  
+           self.replace(self.addr)   
+        print("Insert at index ",self.index(self.addr))   
+        self.line_data[self.index(self.addr)] = data
+  
+    def hit_rate(self):
+        print(" L5 Hit Rate = ", self.L5hits/(self.L5hits+self.L5miss))
+
 class LLScache:
     
     def __init__(self, cache_size, block_size):
@@ -291,6 +345,7 @@ L3_cache = L3cache(25,10) # 25,10   1024 Bytes line
 L4_cache = L4cache(28,12) # 28,12   0 - 1 TB
 L5_cache = L5cache(29,14) # 29,14  8 TB Flash     
 LLS_cache = LLScache(32,16) # Dummy LLS 
+fake_cache = fakecache(29,14)
 
 def main():
     global L1_cache
@@ -307,7 +362,7 @@ def main():
 		f = open("send_L1_to_mem", "r")
 		fcntl.flock(f, fcntl.LOCK_EX)
 		addr = int(f.readlines()[6:])
-		value = L5_cache.get(addr)
+		value = fake_cache.get(addr)
 		print(value)
 		fcntl.flock(f, fcntl.LOCK_UN)
 		f.close()

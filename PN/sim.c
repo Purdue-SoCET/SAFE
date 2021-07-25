@@ -568,7 +568,7 @@ u_int8 getByte (u_int32 addr)
   do { 
   fscanf(recv_mem_to_L1, "val: %d", &val1); 
   }
-  while (val1 != -1);
+  while (val1 != -1); //need to check if -1 is valid
   fprintf(recv_mem_to_L1, "val: -1"); 
   while(!flock(recv_mem_to_L1, LOCK_UN));
   fclose(recv_mem_to_L1);
