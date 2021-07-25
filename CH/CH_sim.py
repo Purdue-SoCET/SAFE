@@ -299,29 +299,30 @@ def main():
     global L4_cache
     global L5_cache
     global LLS_cache
-    L1_cache.put(0x11111,230) #Do testing # Generate random address #Add another core # Generate rand addr #  
-    L1_cache.put(0x00001,245)
-	"""
+    #L1_cache.put(0x11111,230) #Do testing # Generate random address #Add another core # Generate rand addr #  
+    #L1_cache.put(0x00001,245)
+	#LLS will have a DSAST entry that matches the PN
+	#PN on first instruction request from L5 and L5 asks LLS and provide the DSAST
 	while (True):
 		f = open("send_L1_to_mem", "r")
 		fcntl.flock(f, fcntl.LOCK_EX)
 		addr = int(f.readlines()[6:])
-		value = L1_cache.get(addr)
-		f.close()
+		value = L5_cache.get(addr)
+		print(value)
 		fcntl.flock(f, fcntl.LOCK_UN)
+		f.close()
 		f = open("recv_L1_to_mem", "w")
 		fcntl.flock(f, fcntl.LOCK_EX)
-		f.write("val"+str(value))
+		f.write("val: "+str(value))
 		fcntl.flock(f, fcntl.LOCK_UN)
 		f.close()
-	"""
-    print(L1_cache.get(0x11111))
-    print(L1_cache.get(0xFFF23124101))
-    print(L1_cache.get(0x1EF2312401))
-    print(L1_cache.get(0xFFF23124101))
-    L1_cache.hit_rate()
-    L2_cache.hit_rate()
-    LLS_cache.hit_count()
+    #print(L1_cache.get(0x11111))
+    #print(L1_cache.get(0xFFF23124101))
+    #print(L1_cache.get(0x1EF2312401))
+    #print(L1_cache.get(0xFFF23124101))
+    #L1_cache.hit_rate()
+    #L2_cache.hit_rate()
+    #LLS_cache.hit_count()
 
 if __name__ == "__main__":
     main()

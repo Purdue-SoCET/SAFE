@@ -565,7 +565,11 @@ u_int8 getByte (u_int32 addr)
   recv_mem_to_L1 = fopen("recv_mem_to_L1", "r");
   while(!flock(recv_mem_to_L1, LOCK_EX));
   int val1;
-  fscanf(recv_mem_to_L1, "val: %d", &val1);
+  do { 
+  fscanf(recv_mem_to_L1, "val: %d", &val1); 
+  }
+  while (val1 != -1);
+  fprintf(recv_mem_to_L1, "val: -1"); 
   while(!flock(recv_mem_to_L1, LOCK_UN));
   fclose(recv_mem_to_L1);
   return val1; 
